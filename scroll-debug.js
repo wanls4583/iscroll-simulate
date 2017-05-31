@@ -6,7 +6,7 @@ define(function(require, exports, module) {
             startY,//开始的Y坐标
 			startTime,//触摸开始的时间戳
 			endTime,//触摸结束的时间戳
-			preY=0,//上一次touchmove的时间戳
+			preY=0,//上一次touchmove的Y坐标偏移量
 			offsetY=0,//当前的偏移量
 			maxOffsetY,//最大的偏移量
 			disY,//两次touchmove的间隔Y坐标偏移量
@@ -30,7 +30,7 @@ define(function(require, exports, module) {
 
         /**
          * [tranlate 移动函数]
-         * @param  {[Number]} transitionDuration [过渡时间，为0是不会触发transitionend事件]
+         * @param  {[Number]} transitionDuration [过渡时间，为0时不会触发transitionend事件]
          */
         function tranlate(transitionDuration){
         	if(!transitionDuration)

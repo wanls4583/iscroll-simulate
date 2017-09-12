@@ -1,5 +1,5 @@
-define(function(require, exports, module) {
-	'use strict';
+// define(function(require, exports, module) {
+	// 'use strict';
     /**
      * @Author   Lisong
      * @DateTime 2017-08-29
@@ -7,7 +7,7 @@ define(function(require, exports, module) {
      * @param    {[Object]}   opt [{wrapperId:外部容器id,scrollerId:内容容器id,onLoad:加载回调,onRefresh:刷新回调,onMove:移动回调}]
      */
 	function Scroll(opt){
-		var that = this,
+		var self = this,
             startY,//开始的Y坐标
 			startTime,//触摸开始的时间戳
 			endTime,//触摸结束的时间戳
@@ -15,26 +15,34 @@ define(function(require, exports, module) {
 			disY,//两次touchmove的间隔Y坐标偏移量
 			isOutTop = false,//下拉是否超过顶部
 			isOutBottom = false,//上拉是否超过底部
-			lockMove = false;//是否锁定touchmove
-
+			lockMove = false,//是否锁定touchmove
+			enableBar = false,
+			barFadeTimeoutId = null,
+			barOpacity = 1;
+			
 		/*var rAF = window.requestAnimationFrame  ||
         window.webkitRequestAnimationFrame  ||
         window.mozRequestAnimationFrame     ||
         window.oRequestAnimationFrame       ||
         window.msRequestAnimationFrame      ||
         function (callback) { window.setTimeout(callback, 1000 / 60); };*/
-        var self = this;
         //滚动区域
         var wrapper = document.getElementById(opt.wrapperId);
-        this.wrapper = wrapper;
         //滚动的内容
         var scroller = document.getElementById(opt.scrollerId);
+        this.wrapper = wrapper;
         this.scroller = scroller;
+        this.bar = null;
+        this.barClassName = opt.barClassName;
+        this.enableFadeout = opt.enableFadeout;
         //设置最大偏移量
         this.maxOffsetY =  wrapper.clientHeight - scroller.clientHeight;
+        this.barHeight = wrapper.clientHeight*(wrapper.clientHeight/scroller.clientHeight);
         this.tranlate = tranlate;
         //当前的偏移量
         this.offsetY = 0;
+        enableBar = opt.enableBar;
+        enableBar && (this.bar=createScrollBar());
         /**
          * [tranlate 移动函数]
          * @param  {[Number]} transitionDuration [过渡时间，为0时不会触发transitionend事件]
@@ -44,16 +52,40 @@ define(function(require, exports, module) {
         		transitionDuration = 0;
             self.scrolling = true;
             if(transitionDuration){
-                scroller.style[that.style.transitionProperty] = 'transform';
+                scroller.style[self.style.transitionProperty] = 'transform';
             }else{
-                scroller.style[that.style.transitionProperty] = 'none';
+                scroller.style[self.style.transitionProperty] = 'none';
             }
-            scroller.style[that.style.transformOrigin] = '0px 0px 0px';
-            scroller.style[that.style.transitionTimingFunction] = 'cubic-bezier(0.33, 0.66, 0.66, 1)';
-            scroller.style[that.style.transitionDuration] = transitionDuration+'ms';
-
+            scroller.style[self.style.transformOrigin] = '0px 0px 0px';
+            scroller.style[self.style.transitionTimingFunction] = 'cubic-bezier(0.33, 0.66, 0.66, 1)';
+            scroller.style[self.style.transitionDuration] = transitionDuration+'ms';
         	//translateZ(0)用来启动硬件加速
-        	scroller.style[that.style.transform] = 'translateY('+self.offsetY+'px) translateZ(0)';
+        	scroller.style[self.style.transform] = 'translateY('+self.offsetY+'px) translateZ(0)';
+
+        	if(self.bar){
+        		var offsetY = 0;
+        		if(self.offsetY<0 && self.offsetY>self.maxOffsetY){
+        			offsetY = self.offsetY/self.maxOffsetY*(self.wrapper.clientHeight-self.barHeight);
+        		}else if(self.offsetY <= self.maxOffsetY){
+        			offsetY = self.wrapper.clientHeight-self.barHeight;
+        		}
+    			
+        		self.bar.style[self.style.transformOrigin] = '0px 0px 0px';
+	            self.bar.style[self.style.transitionTimingFunction] = 'cubic-bezier(0.33, 0.66, 0.66, 1)';
+	            self.bar.style[self.style.transitionDuration] = transitionDuration+'ms';
+	        	self.bar.style[self.style.transform] = 'translateY('+offsetY+'px) translateZ(0)';
+	        	if(transitionDuration>0){
+	        		clearTimeout(barFadeTimeoutId);
+	        		barFadeTimeoutId = setTimeout(function(){
+	        			if(self.enableFadeout && self.bar.style.display!='none'){
+			            	self.bar.style[self.style.transitionDuration] = '1000ms';
+			            	window.getComputedStyle ?window.getComputedStyle(self.bar, null) : null || scroller.currentStyle;
+			            	self.bar.style.opacity = '0';
+			            }
+	        		},transitionDuration+500);
+	        	}
+	        	
+        	}
         }
 
         /**
@@ -111,13 +143,23 @@ define(function(require, exports, module) {
         function start(e){
             //获取transition过渡未结束的transform值
             var style = window.getComputedStyle ?window.getComputedStyle(scroller, null) : null || scroller.currentStyle;
-            var matrix = style[that.style.transform]
+            var matrix = style[self.style.transform]
+            if(self.enableFadeout){
+            	self.bar.style[self.style.transitionDuration] = '0ms';
+            	window.getComputedStyle ?window.getComputedStyle(self.bar, null) : null || scroller.currentStyle;
+            	self.bar.style.opacity = barOpacity;
+            }
             if(matrix.indexOf('matrix')>-1){
+            	if(self.bar){
+            		//强制刷新
+            		window.getComputedStyle ?window.getComputedStyle(self.bar, null) : null || scroller.currentStyle;
+            	}
                 self.offsetY = Number(matrix.replace(/matrix\(|\)/g,'').split(',')[5]);
                 tranlate();
             }
             startTime = new Date().getTime();
             preY = startY = e.touches[0].pageY;
+            clearTimeout(barFadeTimeoutId);
         }
 
         //触摸移动
@@ -183,6 +225,19 @@ define(function(require, exports, module) {
             isOutTop = false;
             self.scrolling = false;
         }
+        //创建滚动条
+        function createScrollBar(){
+        	if(self.maxOffsetY>=0)
+        		return false;
+        	var style = null;
+        	var div = document.createElement('div');
+    		div.setAttribute('style', 'position:absolute;top:0;right:0;height:'+self.barHeight+'px');
+        	div.setAttribute('class', 'scrollbar '+self.barClassName?self.barClassName:'');
+        	self.wrapper.appendChild(div);
+        	style = window.getComputedStyle ?window.getComputedStyle(div, null) : null || scroller.currentStyle;
+        	barOpacity = style.opacity;
+        	return div
+        }
         bindEvent(scroller, 'touchstart', start);
         bindEvent(scroller, 'touchmove', move);
         bindEvent(scroller, 'touchend', end);
@@ -246,5 +301,5 @@ define(function(require, exports, module) {
         };
         return style;
     })();
-	return Scroll;
-})
+	// return Scroll;
+// })

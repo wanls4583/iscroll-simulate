@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>测试</title>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=400,user-scalable=no">
+	<script type="text/javascript" src="scroll-debug.js"></script>
+	<style type="text/css">
+		html,body{
+			padding: 0;
+			margin: 0;
+			height: 100%;
+		}
+		#wrapper{
+			height: 100%;
+			background: #eee;
+			position: relative;
+			overflow: hidden;
+		}
+		.item{
+			height: 50px;
+		}
+		.bar{
+			width:6px;
+			border-radius:6px;
+			opacity:0.5;
+			background:#000;
+		}
+	</style>
+</head>
+<body>
+	<div id="wrapper">
+		<div id="content">
+			<div class="item"></div>
+		</div>
+	</div>
+</body>
+<script type="text/javascript">
+	var html = '';
+	for(var i=0;i<50;i++){
+		html+='<div class="item">i am line'+i+'</div>'
+	}
+	document.querySelector('#content').innerHTML = html;
+	new Scroll({
+		wrapperId: 'wrapper',
+		scrollerId: 'content',
+		enableBar: true,
+		barClassName: 'bar',
+		enableFadeout: true
+	})
+</script>
+</html>

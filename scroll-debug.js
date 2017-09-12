@@ -1,14 +1,17 @@
 define(function(require, exports, module) {
 	'use strict';
-
-	function Scroll(wrapperId,scrollerId){
+    /**
+     * @Author   Lisong
+     * @DateTime 2017-08-29
+     * @TODO
+     * @param    {[Object]}   opt [{wrapperId:外部容器id,scrollerId:内容容器id,onLoad:加载回调,onRefresh:刷新回调,onMove:移动回调}]
+     */
+	function Scroll(opt){
 		var that = this,
             startY,//开始的Y坐标
 			startTime,//触摸开始的时间戳
 			endTime,//触摸结束的时间戳
 			preY=0,//上一次touchmove的Y坐标偏移量
-			offsetY=0,//当前的偏移量
-			maxOffsetY,//最大的偏移量
 			disY,//两次touchmove的间隔Y坐标偏移量
 			isOutTop = false,//下拉是否超过顶部
 			isOutBottom = false,//上拉是否超过底部
@@ -20,14 +23,18 @@ define(function(require, exports, module) {
         window.oRequestAnimationFrame       ||
         window.msRequestAnimationFrame      ||
         function (callback) { window.setTimeout(callback, 1000 / 60); };*/
-
+        var self = this;
         //滚动区域
-        var wrapper = document.getElementById(wrapperId);
+        var wrapper = document.getElementById(opt.wrapperId);
+        this.wrapper = wrapper;
         //滚动的内容
-        var scroller = document.getElementById(scrollerId);
+        var scroller = document.getElementById(opt.scrollerId);
+        this.scroller = scroller;
         //设置最大偏移量
-        maxOffsetY =  wrapper.clientHeight - scroller.scrollHeight;
-
+        this.maxOffsetY =  wrapper.clientHeight - scroller.clientHeight;
+        this.tranlate = tranlate;
+        //当前的偏移量
+        this.offsetY = 0;
         /**
          * [tranlate 移动函数]
          * @param  {[Number]} transitionDuration [过渡时间，为0时不会触发transitionend事件]
@@ -35,16 +42,18 @@ define(function(require, exports, module) {
         function tranlate(transitionDuration){
         	if(!transitionDuration)
         		transitionDuration = 0;
-            
-            scroller.style[that.style.transitionProperty] = 'transform';
+            self.scrolling = true;
+            if(transitionDuration){
+                scroller.style[that.style.transitionProperty] = 'transform';
+            }else{
+                scroller.style[that.style.transitionProperty] = 'none';
+            }
             scroller.style[that.style.transformOrigin] = '0px 0px 0px';
             scroller.style[that.style.transitionTimingFunction] = 'cubic-bezier(0.33, 0.66, 0.66, 1)';
             scroller.style[that.style.transitionDuration] = transitionDuration+'ms';
-            scroller.style[that.style.transformOrigin] = '0px 0px 0px';
 
         	//translateZ(0)用来启动硬件加速
-        	scroller.style[that.style.transform] = 'translateY('+offsetY+'px) translateZ(0)';
-            document.getElementById('test').innerHTML = that.style.transform;
+        	scroller.style[that.style.transform] = 'translateY('+self.offsetY+'px) translateZ(0)';
         }
 
         /**
@@ -66,18 +75,20 @@ define(function(require, exports, module) {
             //物理公式计算惯性滚动距离
             inertia = ( speed * speed ) / ( 2 * deceleration ) * ( distance < 0 ? -1 : 1 );
             //惯性滚动终点偏移量
-        	destOffsetY = offsetY + inertia;
+        	destOffsetY = self.offsetY + inertia;
             //惯性滚动时长，速度/加速度
             duration = speed / deceleration;
             //如果惯性终点偏移量会超过顶部或者底部，需要减少时长，以免超出
-            if(destOffsetY < maxOffsetY){
-            	destOffsetY = maxOffsetY;
-            	distance = Math.abs(destOffsetY - offsetY);
+            if(destOffsetY < self.maxOffsetY && self.maxOffsetY < 0){
+            	destOffsetY = self.maxOffsetY;
+            	distance = Math.abs(destOffsetY - self.offsetY);
                 duration = distance / speed;
             }else if(destOffsetY > 0){
             	destOffsetY = 0;
-            	distance = Math.abs(offsetY) + destOffsetY;
+            	distance = Math.abs(self.offsetY) + destOffsetY;
                 duration = distance / speed;
+            }else if(self.maxOffsetY >0 && destOffsetY<0){ //如果容器大于内容的高度
+                destOffsetY = 0;
             }
 
             return{
@@ -98,6 +109,13 @@ define(function(require, exports, module) {
 
         //触摸开始
         function start(e){
+            //获取transition过渡未结束的transform值
+            var style = window.getComputedStyle ?window.getComputedStyle(scroller, null) : null || scroller.currentStyle;
+            var matrix = style[that.style.transform]
+            if(matrix.indexOf('matrix')>-1){
+                self.offsetY = Number(matrix.replace(/matrix\(|\)/g,'').split(',')[5]);
+                tranlate();
+            }
             startTime = new Date().getTime();
             preY = startY = e.touches[0].pageY;
         }
@@ -118,32 +136,41 @@ define(function(require, exports, module) {
             if(lockMove || (disY < 10 && nowTime - startTime > 300) )
                 return;
             //上拉或者下拉超出后,降低两次touchmove之间Y的偏移量
-            if(offsetY < maxOffsetY && disY < 0){
+            if(self.offsetY < self.maxOffsetY && self.maxOffsetY<0 && disY < 0){
                 isOutBottom = true;
                 disY *= 0.25;
-            }else if(offsetY > 0 && disY > 0){
+            }else if(self.offsetY > 0 && disY > 0){
                 isOutTop = true;
                 disY *= 0.25;
             }
-            offsetY += disY;
+            self.offsetY += disY;
             tranlate();
+            if(typeof opt.onMove === 'function')
+                opt.onMove(self.offsetY,self.maxOffsetY);
         }
 
         //触摸结束
         function end(e){
             endTime = new Date().getTime();
             var duration = endTime - startTime;
+            var preOffsetY = self.offsetY;
             if(isOutBottom){
                 //回弹时锁定touchmove
                 lockMove = true;
-                offsetY = maxOffsetY;
+                self.offsetY = self.maxOffsetY;
+                if(typeof opt.onLoad === 'function')
+                    opt.onLoad(preOffsetY,self.maxOffsetY);
+                duration<100&&(duration=100);
             }else if(isOutTop){
                 //回弹时锁定touchmove
                 lockMove = true;
-                offsetY = 0;
+                self.offsetY = 0;
+                if(typeof opt.onRefresh === 'function')
+                    opt.onRefresh(preOffsetY);
+                duration<100&&(duration=100);
             }else{
                 var obj = momentum(preY,startY,duration);
-                offsetY = obj.destOffsetY;
+                self.offsetY = obj.destOffsetY;
                 duration = obj.duration;
             }
             tranlate(duration);
@@ -154,6 +181,7 @@ define(function(require, exports, module) {
             lockMove = false;
             isOutBottom = false;
             isOutTop = false;
+            self.scrolling = false;
         }
         bindEvent(scroller, 'touchstart', start);
         bindEvent(scroller, 'touchmove', move);
@@ -164,6 +192,19 @@ define(function(require, exports, module) {
         bindEvent(scroller, 'oTransitionEnd' , transitionEnd);
         bindEvent(scroller, 'MSTransitionEnd', transitionEnd);
 	}
+    Scroll.prototype.refresh = function(){
+        //设置最大偏移量
+        this.maxOffsetY =  this.wrapper.clientHeight - this.scroller.clientHeight;
+    }
+    Scroll.prototype.setOffsetY = function(offsetY){
+        //设置最大偏移量
+        this.offsetY =  offsetY;
+    }
+    Scroll.prototype.scrollTop = function(offsetY){
+        //设置最大偏移量
+        this.offsetY =  offsetY;
+        this.tranlate(200);
+    }
     Scroll.prototype.style = (function(){
         var _elementStyle = document.createElement('div').style;
         /**

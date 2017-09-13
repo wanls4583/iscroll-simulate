@@ -50,7 +50,6 @@
         function tranlate(transitionDuration){
         	if(!transitionDuration)
         		transitionDuration = 0;
-            self.scrolling = true;
             if(transitionDuration){
                 scroller.style[self.style.transitionProperty] = 'transform';
             }else{
@@ -74,17 +73,6 @@
 	            self.bar.style[self.style.transitionTimingFunction] = 'cubic-bezier(0.33, 0.66, 0.66, 1)';
 	            self.bar.style[self.style.transitionDuration] = transitionDuration+'ms';
 	        	self.bar.style[self.style.transform] = 'translateY('+offsetY+'px) translateZ(0)';
-	        	if(transitionDuration>0){
-	        		clearTimeout(barFadeTimeoutId);
-	        		barFadeTimeoutId = setTimeout(function(){
-	        			if(self.enableFadeout && self.bar.style.display!='none'){
-			            	self.bar.style[self.style.transitionDuration] = '1000ms';
-			            	window.getComputedStyle ?window.getComputedStyle(self.bar, null) : null || scroller.currentStyle;
-			            	self.bar.style.opacity = '0';
-			            }
-	        		},transitionDuration+500);
-	        	}
-	        	
         	}
         }
 
@@ -148,6 +136,7 @@
             	self.bar.style[self.style.transitionDuration] = '0ms';
             	window.getComputedStyle ?window.getComputedStyle(self.bar, null) : null || scroller.currentStyle;
             	self.bar.style.opacity = barOpacity;
+            	self.bar.style.display = 'block';
             }
             if(matrix.indexOf('matrix')>-1){
             	if(self.bar){
@@ -174,8 +163,8 @@
                 startTime = nowTime;
                 startY = e.touches[0].pageY;
             }
-            //如果是回弹过程或者300ms以上的时间只滑动了10像素，则不移动
-            if(lockMove || (disY < 10 && nowTime - startTime > 300) )
+            //300ms以上的时间只滑动了10像素，则不移动
+            if(disY < 10 && nowTime - startTime > 300)
                 return;
             //上拉或者下拉超出后,降低两次touchmove之间Y的偏移量
             if(self.offsetY < self.maxOffsetY && self.maxOffsetY<0 && disY < 0){
@@ -197,34 +186,33 @@
             var duration = endTime - startTime;
             var preOffsetY = self.offsetY;
             if(isOutBottom){
-                //回弹时锁定touchmove
-                lockMove = true;
                 self.offsetY = self.maxOffsetY;
                 if(typeof opt.onLoad === 'function')
                     opt.onLoad(preOffsetY,self.maxOffsetY);
-                duration<100&&(duration=100);
+                duration = Math.abs(preOffsetY - self.maxOffsetY)/wrapper.clientHeight*1500;
             }else if(isOutTop){
-                //回弹时锁定touchmove
-                lockMove = true;
                 self.offsetY = 0;
                 if(typeof opt.onRefresh === 'function')
                     opt.onRefresh(preOffsetY);
-                duration<100&&(duration=100);
+                duration = Math.abs(preOffsetY)/wrapper.clientHeight*1500;
             }else{
                 var obj = momentum(preY,startY,duration);
                 self.offsetY = obj.destOffsetY;
                 duration = obj.duration;
             }
             tranlate(duration);
+            isOutTop = false;
+            isOutBottom = false;
+            clearTimeout(barFadeTimeoutId);
+    		barFadeTimeoutId = setTimeout(function(){
+    			if(self.enableFadeout && self.bar.style.display!='none'){
+	            	self.bar.style[self.style.transitionDuration] = '1000ms';
+	            	window.getComputedStyle ?window.getComputedStyle(self.bar, null) : null || scroller.currentStyle;
+	            	self.bar.style.opacity = '0';
+	            }
+    		},duration+500);
         }
 
-        //动画过渡结束
-        function transitionEnd(e){
-            lockMove = false;
-            isOutBottom = false;
-            isOutTop = false;
-            self.scrolling = false;
-        }
         //创建滚动条
         function createScrollBar(){
         	if(self.maxOffsetY>=0)
@@ -232,7 +220,7 @@
         	var style = null;
         	var div = document.createElement('div');
     		div.setAttribute('style', 'position:absolute;top:0;right:0;height:'+self.barHeight+'px');
-        	div.setAttribute('class', 'scrollbar '+self.barClassName?self.barClassName:'');
+        	div.setAttribute('class', self.barClassName?self.barClassName:'');
         	self.wrapper.appendChild(div);
         	style = window.getComputedStyle ?window.getComputedStyle(div, null) : null || scroller.currentStyle;
         	barOpacity = style.opacity;
@@ -242,23 +230,27 @@
         bindEvent(scroller, 'touchmove', move);
         bindEvent(scroller, 'touchend', end);
 
-        bindEvent(scroller, 'transitionend', transitionEnd);
-        bindEvent(scroller, 'webkitTransitionEnd', transitionEnd);
-        bindEvent(scroller, 'oTransitionEnd' , transitionEnd);
-        bindEvent(scroller, 'MSTransitionEnd', transitionEnd);
+        // bindEvent(scroller, 'transitionend', transitionEnd);
+        // bindEvent(scroller, 'webkitTransitionEnd', transitionEnd);
+        // bindEvent(scroller, 'oTransitionEnd' , transitionEnd);
+        // bindEvent(scroller, 'MSTransitionEnd', transitionEnd);
 	}
     Scroll.prototype.refresh = function(){
         //设置最大偏移量
         this.maxOffsetY =  this.wrapper.clientHeight - this.scroller.clientHeight;
+        if(this.bar){
+        	this.barHeight = this.wrapper.clientHeight*(this.wrapper.clientHeight/this.scroller.clientHeight);
+        	this.bar.style.height = this.barHeight+'px';
+        }
     }
     Scroll.prototype.setOffsetY = function(offsetY){
-        //设置最大偏移量
+        //设置偏移量
         this.offsetY =  offsetY;
     }
     Scroll.prototype.scrollTop = function(offsetY){
-        //设置最大偏移量
+        //设置偏移量
         this.offsetY =  offsetY;
-        this.tranlate(200);
+        this.tranlate(400);
     }
     Scroll.prototype.style = (function(){
         var _elementStyle = document.createElement('div').style;

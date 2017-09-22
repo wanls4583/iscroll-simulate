@@ -4,7 +4,24 @@ define(function(require, exports, module) {
      * @Author   Lisong
      * @DateTime 2017-08-29
      * @TODO
-     * @param    {[Object]}   opt [{wrapperId:外部容器id,scrollerId:内容容器id,onLoad:加载回调,onRefresh:刷新回调,onMove:移动回调}]
+     * @param    {[Object]}   
+     * opt [{
+     * wrapperId:外部容器id,
+     * scrollerId:内容容器id,
+     * onLoad:加载回调,
+     * onRefresh:刷新回调,
+     * onMove:移动回调,
+     * barClassName:滚动条样式类,
+     * topTipClassName:拉提示样式类,
+     * bottomTipClassName:上拉提示样式类,
+     * enableBar:是否使用自定义滚动条(仅当useNativeScroll为false时才有意义),
+     * enableFadeout:是否允许自定义滚动条渐隐(仅当enableBar为true时才有意义),
+     * useNativeScroll:是否使用浏览器自带滚动,
+     * topRefreshTxt:顶部刷新提示语,
+     * topRefreshingTxt:顶部刷新中提示语,
+     * bottomLoadTxt:底部加载提示语,
+     * bottomLoadingTxt:底部加载中提示语,
+     * }]
      */
     function Scroll(opt){
         var startY,//开始的Y坐标
@@ -15,6 +32,7 @@ define(function(require, exports, module) {
             isOutTop = false,//下拉是否超过顶部
             isOutBottom = false,//上拉是否超过底部
             barFadeTimeoutId = null,//滚动条消失计时器
+            baunceTimeoutId = null,//回弹计时器
             barOpacity = 1;
             
         var ScrollObj = {
@@ -34,11 +52,15 @@ define(function(require, exports, module) {
                 this.onMove = opt.onMove;
                 this.onLoad = opt.onLoad;
                 this.onRefresh = opt.onRefresh;
+                this.topRefreshTxt = opt.topRefreshTxt;
+                this.topRefreshingTxt = opt.topRefreshingTxt;
+                this.bottomLoadTxt = opt.bottomLoadTxt;
+                this.bottomLoadingTxt = opt.bottomLoadingTxt;
 
+                this.topTip = null; //下拉提示
+                this.bottomTip = null; //上拉提示
                 this._createTip();
                 if(this.useNativeScroll){
-                    this.topTip.style.display = 'none'
-                    this.bottomTip.style.display = 'none';
                     this.scroller.style.overflow = 'visible';
                     this.wrapper.style.overflow = 'auto';
                 }else{
@@ -46,6 +68,10 @@ define(function(require, exports, module) {
                     this.scroller.style.overflow = 'visible';
                     this.wrapper.style.overflow = 'hidden';
                     this.wrapper.style.position = 'relative';
+                    this.topTip.style.display = 'block';
+                    if(this.maxOffsetY < 0){
+                    	this.bottomTip.style.display = 'block';
+                    }
                 }
                 this.prefixStyle = Util.getPrefixStyle();
                 //设置最大偏移量
@@ -64,12 +90,25 @@ define(function(require, exports, module) {
                 });
             },
             refresh: function(){
+            	this.topTip.innerHTML = this.topRefreshTxt || '';
+                this.bottomTip.innerHTML = this.bottomLoadTxt || '';
                 if(!this.useNativeScroll){
+                	if(this.offsetY > 0){
+                		this.offsetY = 0;
+                	}else if(this.maxOffsetY == this.wrapper.clientHeight - this.scroller.clientHeight - this.bottomTip.clientHeight){
+                		this.offsetY = this.maxOffsetY;
+                	}
                     //设置最大偏移量
                     this.maxOffsetY =  this.wrapper.clientHeight - this.scroller.clientHeight;
                     if(this.bar){
                         this.barHeight = this.wrapper.clientHeight*(this.wrapper.clientHeight/this.scroller.clientHeight);
                         this.bar.style.height = this.barHeight+'px';
+                    }
+                    this._tranlate(300);
+                    if(this.maxOffsetY < 0){
+                    	this.bottomTip.style.display = 'block';
+                    }else{
+                    	this.bottomTip.style.display = 'none';
                     }
                 }
             },
@@ -81,8 +120,14 @@ define(function(require, exports, module) {
                 if(!this.useNativeScroll){
                     //设置偏移量
                     this.offsetY =  offsetY;
-                    this._tranlate(400);
+                    this._tranlate(300);
                 }
+            },
+            setTopTip: function(txt){
+            	this.topTip.innerHTML = txt;
+            },
+            setBottomTip: function(){
+            	this.bottomTip.innerHTML = txt;
             },
             /**
              * [_tranlate 移动函数]
@@ -158,35 +203,36 @@ define(function(require, exports, module) {
             },
             //触摸开始
             _start: function(e){
+            	//获取transition过渡未结束的transform值
+                var style = window.getComputedStyle ?window.getComputedStyle(this.scroller, null) : null || this.scroller.currentStyle;
+                var matrix = style[this.prefixStyle.transform];
+                this.topTip.innerHTML = this.topRefreshTxt || '';
+                this.bottomTip.innerHTML = this.bottomLoadTxt || '';
+                if(matrix.indexOf('matrix')>-1){
+                    if(this.bar){
+                        //强制刷新
+                        window.getComputedStyle ?window.getComputedStyle(this.bar, null) : null || this.scroller.currentStyle;
+                    }
+                    this.offsetY = Number(matrix.replace(/matrix\(|\)/g,'').split(',')[5]);
+                    this._tranlate();
+                }
                 if(!this.useNativeScroll){
-                    //获取transition过渡未结束的transform值
-                    var style = window.getComputedStyle ?window.getComputedStyle(this.scroller, null) : null || this.scroller.currentStyle;
-                    var matrix = style[this.prefixStyle.transform]
                     if(this.enableFadeout){
                         this.bar.style[this.prefixStyle.transitionDuration] = '0ms';
                         window.getComputedStyle ?window.getComputedStyle(this.bar, null) : null || this.scroller.currentStyle;
                         this.bar.style.opacity = barOpacity;
                         this.bar.style.display = 'block';
                     }
-                    if(matrix.indexOf('matrix')>-1){
-                        if(this.bar){
-                            //强制刷新
-                            window.getComputedStyle ?window.getComputedStyle(this.bar, null) : null || this.scroller.currentStyle;
-                        }
-                        this.offsetY = Number(matrix.replace(/matrix\(|\)/g,'').split(',')[5]);
-                        this._tranlate();
-                    }
                     startTime = new Date().getTime();
                     preY = startY = e.touches[0].pageY;
                     clearTimeout(barFadeTimeoutId);
                 }else{
+                	clearTimeout(baunceTimeoutId);
                     preY = startY = e.touches[0].pageY;
                 }
             },
             //触摸移动
             _move: function(e){
-                // e.preventDefault();
-                // e.stopPropagation();
                 disY = e.touches[0].pageY - preY;
                 preY = e.touches[0].pageY;
                 var nowTime = new Date().getTime();
@@ -199,6 +245,8 @@ define(function(require, exports, module) {
                 if(disY < 10 && nowTime - startTime > 300)
                     return;
                 if(!this.useNativeScroll){
+                	e.preventDefault();
+                	e.stopPropagation();
                     //上拉或者下拉超出后,降低两次touchmove之间Y的偏移量
                     if(this.offsetY < this.maxOffsetY && this.maxOffsetY<0 && disY < 0){
                         isOutBottom = true;
@@ -211,28 +259,33 @@ define(function(require, exports, module) {
                     this._tranlate();
                 }else{
                     this.offsetY += disY;
-                    if(this.wrapper.scrollTop == Math.abs(this.maxOffsetY) && this.offsetY < 0){
-                        this.wrapper.style.overflow = 'hidden';
-                        this.topTip.style.display = 'block';
+                    if(Math.abs(this.wrapper.scrollTop-Math.abs(this.maxOffsetY)) < 2 && this.offsetY < 0){
+                    	e.preventDefault();
+                		e.stopPropagation();
+                        this.bottomTip.style.display = 'block';
                         isOutBottom = true;
                         disY *= 0.25;
                         this._tranlate();
                     }else if(this.wrapper.scrollTop == 0 && this.offsetY>0){
-                        this.wrapper.style.overflow = 'hidden';
-                        this.bottomTip.style.display = 'block';
+                    	e.preventDefault();
+                		e.stopPropagation();
+                        this.topTip.style.display = 'block';
                         isOutTop = true;
                         disY *= 0.25;
                         this._tranlate();
                     }else{
+                    	if(this.wrapper.scrollTop == 0){
+                    		disY *= 0.25;
+                        	this._tranlate();
+                    	}
                         isOutTop = false;
                         isOutBottom = false;
-                        this.wrapper.style.overflow = 'auto';
                         this.topTip.style.display = 'none';
                         this.bottomTip.style.display = 'none';
                         this.offsetY = 0;
                     }
                 }
-                typeof opt.onMove === 'function' && this.onMove(this.offsetY,this.maxOffsetY);
+                typeof this.onMove === 'function' && this.onMove();
             },
             //触摸结束
             _end: function(e){
@@ -243,13 +296,19 @@ define(function(require, exports, module) {
                 if(!this.useNativeScroll){
                     if(isOutBottom){
                         this.offsetY = this.maxOffsetY;
-                        if(typeof opt.onLoad === 'function')
-                            this.onLoad(preOffsetY,this.maxOffsetY);
+                        if(typeof this.onLoad === 'function' && this.offsetY < this.maxOffsetY - this.bottomTip.clientHeight){
+                        	this.offsetY = this.maxOffsetY - this.bottomTip.clientHeight;
+                        	this.bottomTip = this.bottomLoadingTxt;
+                            this.onLoad();
+                        }
                         duration = Math.abs(preOffsetY - this.maxOffsetY)/wrapper.clientHeight*1500;
                     }else if(isOutTop){
                         this.offsetY = 0;
-                        if(typeof opt.onRefresh === 'function')
-                            this.onRefresh(preOffsetY);
+                        if(typeof this.onRefresh === 'function' && this.offsetY > this.topTip.clientHeight){
+                        	this.offsetY = this.topTip.clientHeight;
+                        	this.topTip.innerHTML = this.topRefreshingTxt;
+                            this.onRefresh();
+                        }
                         duration = Math.abs(preOffsetY)/wrapper.clientHeight*1500;
                     }else{
                         var obj = this._momentum(preY,startY,duration);
@@ -270,23 +329,27 @@ define(function(require, exports, module) {
                 }else{
                     if(isOutBottom){
                         this.offsetY = 0;
-                        if(typeof opt.onLoad === 'function')
+                        if(typeof this.onLoad === 'function')
                             this.onLoad(preOffsetY,this.maxOffsetY);
                         duration = Math.abs(preOffsetY - this.maxOffsetY)/wrapper.clientHeight*1500;
-                        setTimeout(function(){
-                            self.wrapper.style.overflow = 'auto';
+                        baunceTimeoutId = setTimeout(function(){
+                            self.topTip.style.display = 'none';
+                        	self.bottomTip.style.display = 'none';
                         },duration+100);
                     }else if(isOutTop){
                         this.offsetY = 0;
-                        if(typeof opt.onRefresh === 'function')
+                        if(typeof this.onRefresh === 'function')
                             this.onRefresh(preOffsetY);
                         duration = Math.abs(preOffsetY)/wrapper.clientHeight*1500;
-                        setTimeout(function(){
-                            self.wrapper.style.overflow = 'auto';
+                        baunceTimeoutId = setTimeout(function(){
+                            self.topTip.style.display = 'none';
+                        	self.bottomTip.style.display = 'none';
                         },duration+100);
                     }else{
                         this.offsetY = 0;
+                        duration = 0;
                     }
+                    this._tranlate(duration);
                 }
             },
             //创建滚动条
@@ -307,11 +370,14 @@ define(function(require, exports, module) {
                 this.bottomTip = document.createElement('span');
                 var css = 'position:absolute;width:100%;display:none;line-height:60px;max-height:60px;text-align:center';
                 this.topTip.setAttribute('style',css+';top:-60px');
+                this.topTip.innerHTML = this.topRefreshTxt||'';
                 this.topTip.setAttribute('class', this.topTipClassName?this.topTipClassName:'');
                 this.bottomTip.setAttribute('style',css+';bottom:-60px');
                 this.bottomTip.setAttribute('class', this.bottomTipClassName?this.bottomTipClassName:'');
+                this.bottomTip.innerHTML = this.bottomLoadTxt||'';
                 this.scroller.insertBefore(this.bottomTip,this.scroller.firstElementChild);
                 this.scroller.insertBefore(this.topTip,this.scroller.firstElementChild);
+
             },
             /**
              * [_bindEvent 事件绑定函数]

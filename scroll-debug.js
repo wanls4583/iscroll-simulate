@@ -21,6 +21,7 @@ define(function(require, exports, module) {
      * topRefreshingTxt:顶部刷新中提示语,
      * bottomLoadTxt:底部加载提示语,
      * bottomLoadingTxt:底部加载中提示语,
+     * bottomNomoreTxt:底部没有了提示语
      * }]
      */
     function Scroll(opt){
@@ -54,8 +55,11 @@ define(function(require, exports, module) {
                 this.onRefresh = opt.onRefresh;
                 this.topRefreshTxt = opt.topRefreshTxt;
                 this.topRefreshingTxt = opt.topRefreshingTxt;
+                this.topRefreshGoTxt = opt.topRefreshGoTxt;
                 this.bottomLoadTxt = opt.bottomLoadTxt;
                 this.bottomLoadingTxt = opt.bottomLoadingTxt;
+                this.bottomLoadGoTxt = opt.bottomLoadGoTxt;
+                this.bottomNomoreTxt = opt.bottomNomoreTxt;
 
                 this.topTip = null; //下拉提示
                 this.bottomTip = null; //上拉提示
@@ -64,21 +68,23 @@ define(function(require, exports, module) {
                     this.scroller.style.overflow = 'visible';
                     this.wrapper.style.overflow = 'auto';
                 }else{
+                    this.barHeight = this.wrapper.clientHeight*(this.wrapper.clientHeight/this.scroller.clientHeight);
                     this.enableBar && (this.bar=this._createScrollBar()) && (this.bar.style.display = 'none');
                     this.scroller.style.overflow = 'visible';
                     this.wrapper.style.overflow = 'hidden';
                     this.wrapper.style.position = 'relative';
-                    this.topTip.style.display = 'block';
-                    if(this.maxOffsetY < 0){
-                    	this.bottomTip.style.display = 'block';
-                    }
                 }
                 this.prefixStyle = Util.getPrefixStyle();
+                //最小偏移量
+                this.topOffsetY = -this.topTip.clientHeight;
                 //设置最大偏移量
                 this.maxOffsetY =  wrapper.clientHeight - this.scroller.clientHeight;
                 //当前的偏移量
-                this.offsetY = 0;
-                this.barHeight = wrapper.clientHeight*(wrapper.clientHeight/this.scroller.clientHeight);
+                this.offsetY = this.topOffsetY;
+                this._tranlate();
+                if(this.maxOffsetY < this.topOffsetY){
+                    this.bottomTip.style.display = 'block';
+                }
                 this._bindEvent(this.scroller, 'touchstart', function(e){
                     self._start(e);
                 });
@@ -90,27 +96,31 @@ define(function(require, exports, module) {
                 });
             },
             refresh: function(){
-            	this.topTip.innerHTML = this.topRefreshTxt || '';
+                this.topTip.innerHTML = this.topRefreshTxt || '';
                 this.bottomTip.innerHTML = this.bottomLoadTxt || '';
                 if(!this.useNativeScroll){
-                	if(this.offsetY > 0){
-                		this.offsetY = 0;
-                	}else if(this.maxOffsetY == this.wrapper.clientHeight - this.scroller.clientHeight - this.bottomTip.clientHeight){
-                		this.offsetY = this.maxOffsetY;
-                	}
+                    if(this.offsetY > this.topOffsetY){
+                        this.offsetY = this.topOffsetY;
+                    }else if(this.offsetY < this.maxOffsetY){
+                        this.offsetY = this.maxOffsetY;
+                        if(this.maxOffsetY == this.wrapper.clientHeight - this.scroller.clientHeight){
+                            this.bottomTip.innerHTML = this.bottomNomoreTxt;
+                        }
+                    }
+
                     //设置最大偏移量
                     this.maxOffsetY =  this.wrapper.clientHeight - this.scroller.clientHeight;
                     if(this.bar){
                         this.barHeight = this.wrapper.clientHeight*(this.wrapper.clientHeight/this.scroller.clientHeight);
                         this.bar.style.height = this.barHeight+'px';
                     }
-                    this._tranlate(300);
-                    if(this.maxOffsetY < 0){
-                    	this.bottomTip.style.display = 'block';
-                    }else{
-                    	this.bottomTip.style.display = 'none';
+                }else{
+                    if(this.offsetY < this.topOffsetY && this.maxOffsetY == this.wrapper.clientHeight - this.scroller.clientHeight){
+                        this.bottomTip.innerHTML = this.bottomNomoreTxt;
                     }
+                    this.offsetY = this.topOffsetY;
                 }
+                this._tranlate(300);
             },
             setOffsetY: function(offsetY){
                 //设置偏移量
@@ -124,10 +134,10 @@ define(function(require, exports, module) {
                 }
             },
             setTopTip: function(txt){
-            	this.topTip.innerHTML = txt;
+                this.topTip.innerHTML = txt;
             },
             setBottomTip: function(){
-            	this.bottomTip.innerHTML = txt;
+                this.bottomTip.innerHTML = txt;
             },
             /**
              * [_tranlate 移动函数]
@@ -149,8 +159,8 @@ define(function(require, exports, module) {
 
                 if(this.bar){
                     var offsetY = 0;
-                    if(this.offsetY<0 && this.offsetY>this.maxOffsetY){
-                        offsetY = this.offsetY/this.maxOffsetY*(this.wrapper.clientHeight-this.barHeight);
+                    if(this.offsetY<this.topOffsetY && this.offsetY>this.maxOffsetY){
+                        offsetY = (this.offsetY-this.topOffsetY)/this.maxOffsetY*(this.wrapper.clientHeight-this.barHeight);
                     }else if(this.offsetY <= this.maxOffsetY){
                         offsetY = this.wrapper.clientHeight-this.barHeight;
                     }
@@ -184,18 +194,18 @@ define(function(require, exports, module) {
                 //惯性滚动时长，速度/加速度
                 duration = speed / deceleration;
                 //如果惯性终点偏移量会超过顶部或者底部，需要减少时长，以免超出
-                if(destOffsetY < this.maxOffsetY && this.maxOffsetY < 0){
+                if(destOffsetY < this.maxOffsetY && this.maxOffsetY < this.topOffsetY){
                     destOffsetY = this.maxOffsetY;
-                    distance = Math.abs(destOffsetY - this.offsetY);
+                    distance = Math.abs(this.offsetY - destOffsetY);
                     duration = distance / speed;
-                }else if(destOffsetY > 0){
-                    destOffsetY = 0;
-                    distance = Math.abs(this.offsetY) + destOffsetY;
+                }else if(destOffsetY > this.topOffsetY){
+                    destOffsetY = this.topOffsetY;
+                    distance = Math.abs(this.offsetY - destOffsetY);
                     duration = distance / speed;
-                }else if(this.maxOffsetY >0 && destOffsetY<0){ //如果容器大于内容的高度
-                    destOffsetY = 0;
+                }else if(this.maxOffsetY >this.topOffsetY && destOffsetY<this.topOffsetY){ //如果容器大于内容的高度
+                    destOffsetY = this.topOffsetY;
                 }
-
+                
                 return{
                     destOffsetY: Math.round(destOffsetY),
                     duration: duration
@@ -203,7 +213,7 @@ define(function(require, exports, module) {
             },
             //触摸开始
             _start: function(e){
-            	//获取transition过渡未结束的transform值
+                //获取transition过渡未结束的transform值
                 var style = window.getComputedStyle ?window.getComputedStyle(this.scroller, null) : null || this.scroller.currentStyle;
                 var matrix = style[this.prefixStyle.transform];
                 this.topTip.innerHTML = this.topRefreshTxt || '';
@@ -227,7 +237,7 @@ define(function(require, exports, module) {
                     preY = startY = e.touches[0].pageY;
                     clearTimeout(barFadeTimeoutId);
                 }else{
-                	clearTimeout(baunceTimeoutId);
+                    clearTimeout(baunceTimeoutId);
                     preY = startY = e.touches[0].pageY;
                 }
             },
@@ -245,44 +255,56 @@ define(function(require, exports, module) {
                 if(disY < 10 && nowTime - startTime > 300)
                     return;
                 if(!this.useNativeScroll){
-                	e.preventDefault();
-                	e.stopPropagation();
+                    e.preventDefault();
+                    e.stopPropagation();
                     //上拉或者下拉超出后,降低两次touchmove之间Y的偏移量
                     if(this.offsetY < this.maxOffsetY && this.maxOffsetY<0 && disY < 0){
                         isOutBottom = true;
                         disY *= 0.25;
-                    }else if(this.offsetY > 0 && disY > 0){
+                        if(this.offsetY < this.maxOffsetY - this.bottomTip.clientHeight){
+                            this.bottomTip.innerHTML = this.bottomLoadGoTxt;
+                        }else{
+                            this.bottomTip.innerHTML = this.bottomLoadTxt;
+                        }
+                    }else if(this.offsetY > this.topOffsetY && disY > 0){
                         isOutTop = true;
                         disY *= 0.25;
+                        if(this.offsetY > 0){
+                            this.topTip.innerHTML = this.topRefreshGoTxt;
+                        }else{
+                            this.topTip.innerHTML = this.topRefreshTxt;
+                        }
                     }
                     this.offsetY += disY;
                     this._tranlate();
                 }else{
                     this.offsetY += disY;
-                    if(Math.abs(this.wrapper.scrollTop-Math.abs(this.maxOffsetY)) < 2 && this.offsetY < 0){
-                    	e.preventDefault();
-                		e.stopPropagation();
-                        this.bottomTip.style.display = 'block';
+                    if(Math.abs(this.wrapper.scrollTop-Math.abs(this.maxOffsetY)) < 2 && this.offsetY < this.topOffsetY){
+                        e.preventDefault();
+                        e.stopPropagation();
                         isOutBottom = true;
                         disY *= 0.25;
                         this._tranlate();
-                    }else if(this.wrapper.scrollTop == 0 && this.offsetY>0){
-                    	e.preventDefault();
-                		e.stopPropagation();
-                        this.topTip.style.display = 'block';
+                        if(this.offsetY < this.topOffsetY - this.bottomTip.clientHeight){
+                            this.bottomTip.innerHTML = this.bottomLoadGoTxt;
+                        }else{
+                            this.bottomTip.innerHTML = this.bottomLoadTxt;
+                        }
+                    }else if(this.wrapper.scrollTop == 0 && this.offsetY>this.topOffsetY){
+                        e.preventDefault();
+                        e.stopPropagation();
                         isOutTop = true;
                         disY *= 0.25;
                         this._tranlate();
+                        if(this.offsetY > 0){
+                            this.topTip.innerHTML = this.topRefreshGoTxt;
+                        }else{
+                            this.topTip.innerHTML = this.topRefreshTxt;
+                        }
                     }else{
-                    	if(this.wrapper.scrollTop == 0){
-                    		disY *= 0.25;
-                        	this._tranlate();
-                    	}
                         isOutTop = false;
                         isOutBottom = false;
-                        this.topTip.style.display = 'none';
-                        this.bottomTip.style.display = 'none';
-                        this.offsetY = 0;
+                        this.offsetY = this.topOffsetY;
                     }
                 }
                 typeof this.onMove === 'function' && this.onMove();
@@ -290,26 +312,26 @@ define(function(require, exports, module) {
             //触摸结束
             _end: function(e){
                 var self = this;
-                var duration = endTime - startTime;
                 var preOffsetY = this.offsetY;
                 endTime = new Date().getTime();
+                var duration = endTime - startTime;
                 if(!this.useNativeScroll){
                     if(isOutBottom){
                         this.offsetY = this.maxOffsetY;
-                        if(typeof this.onLoad === 'function' && this.offsetY < this.maxOffsetY - this.bottomTip.clientHeight){
-                        	this.offsetY = this.maxOffsetY - this.bottomTip.clientHeight;
-                        	this.bottomTip = this.bottomLoadingTxt;
+                        if(typeof this.onLoad === 'function' && preOffsetY < this.maxOffsetY - this.bottomTip.clientHeight){
+                            this.offsetY = this.maxOffsetY - this.bottomTip.clientHeight;
+                            this.bottomTip.innerHTML = this.bottomLoadingTxt;
                             this.onLoad();
                         }
-                        duration = Math.abs(preOffsetY - this.maxOffsetY)/wrapper.clientHeight*1500;
+                        duration = Math.abs(preOffsetY - this.offsetY)/wrapper.clientHeight*1500;
                     }else if(isOutTop){
-                        this.offsetY = 0;
-                        if(typeof this.onRefresh === 'function' && this.offsetY > this.topTip.clientHeight){
-                        	this.offsetY = this.topTip.clientHeight;
-                        	this.topTip.innerHTML = this.topRefreshingTxt;
+                        this.offsetY = this.topOffsetY;
+                        if(typeof this.onRefresh === 'function' && preOffsetY > 0){
+                            this.offsetY = 0;
+                            this.topTip.innerHTML = this.topRefreshingTxt;
                             this.onRefresh();
                         }
-                        duration = Math.abs(preOffsetY)/wrapper.clientHeight*1500;
+                        duration = Math.abs(preOffsetY-this.offsetY)/wrapper.clientHeight*1500;
                     }else{
                         var obj = this._momentum(preY,startY,duration);
                         this.offsetY = obj.destOffsetY;
@@ -328,28 +350,27 @@ define(function(require, exports, module) {
                     },duration+500);
                 }else{
                     if(isOutBottom){
-                        this.offsetY = 0;
-                        if(typeof this.onLoad === 'function')
-                            this.onLoad(preOffsetY,this.maxOffsetY);
-                        duration = Math.abs(preOffsetY - this.maxOffsetY)/wrapper.clientHeight*1500;
-                        baunceTimeoutId = setTimeout(function(){
-                            self.topTip.style.display = 'none';
-                        	self.bottomTip.style.display = 'none';
-                        },duration+100);
+                        this.offsetY = this.topOffsetY;
+                        if(typeof this.onLoad === 'function' && preOffsetY < -this.bottomTip.clientHeight+this.topOffsetY){
+                            this.offsetY = -this.bottomTip.clientHeight+this.topOffsetY;
+                            this.bottomTip.innerHTML = this.bottomLoadingTxt;
+                            this.onLoad();
+                        }
+                        duration = Math.abs(preOffsetY-this.topOffsetY)/wrapper.clientHeight*1500;
+                        this._tranlate(duration);
                     }else if(isOutTop){
-                        this.offsetY = 0;
-                        if(typeof this.onRefresh === 'function')
-                            this.onRefresh(preOffsetY);
-                        duration = Math.abs(preOffsetY)/wrapper.clientHeight*1500;
-                        baunceTimeoutId = setTimeout(function(){
-                            self.topTip.style.display = 'none';
-                        	self.bottomTip.style.display = 'none';
-                        },duration+100);
+                        this.offsetY = this.topOffsetY;
+                        if(typeof this.onRefresh === 'function' && preOffsetY > 0){
+                            this.offsetY = 0;
+                            this.topTip.innerHTML = this.topRefreshingTxt;
+                            this.onRefresh();
+                        }
+                        duration = Math.abs(preOffsetY-this.topOffsetY)/wrapper.clientHeight*1500;
+                        this._tranlate(duration);
                     }else{
-                        this.offsetY = 0;
+                        this.offsetY = this.topOffsetY;
                         duration = 0;
                     }
-                    this._tranlate(duration);
                 }
             },
             //创建滚动条
@@ -368,13 +389,14 @@ define(function(require, exports, module) {
             _createTip: function(){
                 this.topTip = document.createElement('span');
                 this.bottomTip = document.createElement('span');
-                var css = 'position:absolute;width:100%;display:none;line-height:60px;max-height:60px;text-align:center';
-                this.topTip.setAttribute('style',css+';top:-60px');
+                var topTipCss = 'width:100%;display:block;line-height:60px;max-height:60px;text-align:center';
+                var bottomTipCss = 'position:absolute;width:100%;display:none;line-height:60px;max-height:60px;text-align:center';
+                this.topTip.setAttribute('style',topTipCss);
                 this.topTip.innerHTML = this.topRefreshTxt||'';
                 this.topTip.setAttribute('class', this.topTipClassName?this.topTipClassName:'');
-                this.bottomTip.setAttribute('style',css+';bottom:-60px');
-                this.bottomTip.setAttribute('class', this.bottomTipClassName?this.bottomTipClassName:'');
+                this.bottomTip.setAttribute('style',bottomTipCss+';bottom:-60px');
                 this.bottomTip.innerHTML = this.bottomLoadTxt||'';
+                this.bottomTip.setAttribute('class', this.bottomTipClassName?this.bottomTipClassName:'');
                 this.scroller.insertBefore(this.bottomTip,this.scroller.firstElementChild);
                 this.scroller.insertBefore(this.topTip,this.scroller.firstElementChild);
 

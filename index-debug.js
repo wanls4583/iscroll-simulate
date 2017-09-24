@@ -261,6 +261,7 @@ define(function(require, exports, module){
 			    bottomNomoreTxt:'到底啦',
 			    topRefreshGoTxt:'松开刷新',
 			    bottomLoadGoTxt:'松开加载',
+			    // autoLoad:true,
 			    useNativeScroll: true,
 				onLoad: function(offsetY,maxOffsetY){
 					if(!nomore){
@@ -268,6 +269,7 @@ define(function(require, exports, module){
 							scroll.refresh();
 						},0);
 					}else{
+						scroll.setNomore(true);
 						scroll.refresh();
 					}
 				},

@@ -261,8 +261,9 @@ define(function(require, exports, module){
 			    bottomNomoreTxt:'到底啦',
 			    topRefreshGoTxt:'松开刷新',
 			    bottomLoadGoTxt:'松开加载',
-			    // autoLoad:true,
+			    autoLoad:true,
 			    useNativeScroll: true,
+			    userRefreshIcon: true,
 				onLoad: function(offsetY,maxOffsetY){
 					if(!nomore){
 						setTimeout(function(){

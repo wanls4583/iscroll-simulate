@@ -19,11 +19,12 @@ define(function(require, exports, module) {
      * useNativeScroll:是否使用浏览器自带滚动,
      * topRefreshTxt:顶部刷新提示语,
      * topRefreshingTxt:顶部刷新中提示语,
+     * topRefreshGoTxt:顶部松手提示语,
      * bottomLoadTxt:底部加载提示语,
      * bottomLoadingTxt:底部加载中提示语,
      * bottomNomoreTxt:底部没有了提示语，
-     * topRefreshGoTxt:顶部松手提示语,
-     * bottomLoadGoTxt:底部松手提示语
+     * bottomLoadGoTxt:底部松手提示语,
+     * userRefreshIcon:是否使用刷新图标
      * }]
      */
     function Scroll(opt){
@@ -65,10 +66,12 @@ define(function(require, exports, module) {
                 this.bottomLoadGoTxt = opt.bottomLoadGoTxt||'';
                 this.bottomNomoreTxt = opt.bottomNomoreTxt||'';
                 this.autoLoad = opt.autoLoad;
+                this.userRefreshIcon = opt.autoLoad!=undefined?opt.autoLoad:true;
 
                 this.nomore = false;//内容是否加载完成
                 this.topTip = null; //下拉提示
                 this.bottomTip = null; //上拉提示
+                //创建提示语dom
                 this._createTip();
                 if(this.useNativeScroll){
                     this.scroller.style.overflow = 'visible';
@@ -87,6 +90,7 @@ define(function(require, exports, module) {
                 this.maxOffsetY =  this.wrapper.clientHeight - this.scroller.clientHeight - this.bottomTip.clientHeight;
                 //当前的偏移量
                 this.offsetY = this.topOffsetY;
+                //初始化位置
                 this._tranlate();
                 this._bindEvent(this.scroller, 'touchstart', function(e){
                     self._start(e);
@@ -121,7 +125,11 @@ define(function(require, exports, module) {
                     this.offsetY = this.topOffsetY;
                 }
                 setTimeout(function(){
-                	self.topTip.innerHTML = self.topRefreshTxt;
+                	if(!self.userRefreshIcon){
+                		self.topTip.innerHTML = self.topRefreshTxt;
+                	}else{
+                		self.refreshIcon.className = 'rf_rf_circle_w';
+                	}
                 	self._tranlate(500);
                 },500);
                 preScrollerHeight = this.scroller.clientHeight; 
@@ -148,7 +156,9 @@ define(function(require, exports, module) {
                 }
             },
             setTopTip: function(txt){
-                this.topTip.innerHTML = txt;
+            	if(!this.userRefreshIcon){
+            		this.topTip.innerHTML = txt;
+            	}
             },
             setBottomTip: function(){
                 this.bottomTip.innerHTML = txt;
@@ -297,9 +307,17 @@ define(function(require, exports, module) {
                         isOutTop = true;
                         disY *= 0.25;
                     	if(this.offsetY > 0){
-                            this.topTip.innerHTML = this.topRefreshGoTxt;
+                    		if(this.userRefreshIcon){
+                        		this._rotateIcon();
+                        	}else{
+                        		this.topTip.innerHTML = this.topRefreshGoTxt;
+                        	}
                         }else{
-                            this.topTip.innerHTML = this.topRefreshTxt;
+                        	if(this.userRefreshIcon){
+                        		this._rotateIcon();
+                        	}else{
+                        		this.topTip.innerHTML = this.topRefreshTxt;
+                        	}
                         }
                     }
                     //自动加载提示
@@ -337,9 +355,17 @@ define(function(require, exports, module) {
                         this.offsetY += disY;
                         this._tranlate();
                     	if(this.offsetY > 0){
-                            this.topTip.innerHTML = this.topRefreshGoTxt;
+                    		if(this.userRefreshIcon){
+                        		this._rotateIcon();
+                        	}else{
+                        		this.topTip.innerHTML = this.topRefreshGoTxt;
+                        	}
                         }else{
-                            this.topTip.innerHTML = this.topRefreshTxt;
+                        	if(this.userRefreshIcon){
+                        		this._rotateIcon();
+                        	}else{
+                        		this.topTip.innerHTML = this.topRefreshTxt;
+                        	}
                         }
                     }else{
                         isOutTop = false;
@@ -382,8 +408,12 @@ define(function(require, exports, module) {
                     }else if(isOutTop){
                         this.offsetY = this.topOffsetY;
                         if(typeof this.onRefresh === 'function' && preOffsetY > 0){
+                        	if(!this.userRefreshIcon){
+                            	this.topTip.innerHTML = this.topRefreshingTxt;
+                            }else{
+                            	this.refreshIcon.className = 'rf_rf_circle_w rotate_circle';
+                            }
                             this.offsetY = 0;
-                            this.topTip.innerHTML = this.topRefreshingTxt;
                             this.onRefresh();
                         }
                         duration = Math.abs(preOffsetY - this.offsetY)/wrapper.clientHeight*1500;
@@ -423,8 +453,12 @@ define(function(require, exports, module) {
                     }else if(isOutTop){
                         this.offsetY = this.topOffsetY;
                         if(typeof this.onRefresh === 'function' && preOffsetY > 0){
+                        	if(!this.userRefreshIcon){
+                            	this.topTip.innerHTML = this.topRefreshingTxt;
+                            }else{
+                            	this.refreshIcon.className = 'rf_rf_circle_w rotate_circle';
+                            }
                             this.offsetY = 0;
-                            this.topTip.innerHTML = this.topRefreshingTxt;
                             this.onRefresh();
                         }
                         duration = Math.abs(preOffsetY-this.topOffsetY)/wrapper.clientHeight*1500;
@@ -437,6 +471,23 @@ define(function(require, exports, module) {
                 if(this.nomore){
                 	this.bottomTip.innerHTML = this.bottomNomoreTxt;
                 }
+            },
+            _rotateIcon: function(){
+            	if(this.offsetY > this.topOffsetY){
+            		var distance = Math.abs(this.offsetY-this.topOffsetY);
+            		var deg = distance/this.topTip.clientHeight*180;
+            		deg = deg>360?360:deg;
+            		if(deg<180){
+            			this.leftIconCover.style[this.prefixStyle.transform] = 'rotate(0deg)';
+            			this.rightIconCover.style[this.prefixStyle.transformOrigin] = 'left center';
+            			this.rightIconCover.style[this.prefixStyle.transform] = 'rotate('+deg+'deg)';
+            		}else{
+            			this.rightIconCover.style[this.prefixStyle.transformOrigin] = 'left center';
+            			this.rightIconCover.style[this.prefixStyle.transform] = 'rotate('+180+'deg)';
+            			this.leftIconCover.style[this.prefixStyle.transformOrigin] = 'right center';
+            			this.leftIconCover.style[this.prefixStyle.transform] = 'rotate('+(deg-180)+'deg)';
+            		}
+            	}
             },
             //创建滚动条
             _createScrollBar: function(){
@@ -451,9 +502,10 @@ define(function(require, exports, module) {
                 barOpacity = style.opacity;
                 return div;
             },
+            //创建提示语dom元素
             _createTip: function(){
-                this.topTip = document.createElement('span');
-                this.bottomTip = document.createElement('span');
+                this.topTip = document.createElement('div');
+                this.bottomTip = document.createElement('div');
                 var topTipCss = 'width:100%;display:block;line-height:60px;height:60px;text-align:center';
                 var bottomTipCss = 'position:absolute;width:100%;display:block;line-height:60px;height:60px;text-align:center';
                 this.topTip.setAttribute('style',topTipCss);
@@ -464,13 +516,41 @@ define(function(require, exports, module) {
                 this.bottomTip.setAttribute('class', this.bottomTipClassName?this.bottomTipClassName:'');
                 this.scroller.insertBefore(this.bottomTip,this.scroller.firstElementChild);
                 this.scroller.insertBefore(this.topTip,this.scroller.firstElementChild);
+
+                //创建刷新图标
+                if(this.userRefreshIcon){
+                	this.topTip.style.fontSize = '0px';
+                	this.topTip.innerHTML = '<div class="rf_rf_circle_w">\
+										        <div class="rf_cover_left_w"><div class="rf_cover_left"></div></div>\
+										        <div class="rf_cover_right_w"><div class="rf_cover_right"></div></div>\
+										        <div class="rf_circle"></div>\
+										    </div>';
+					var css_rf_rf_circle_w = 'position: relative; width: 40px; height: 40px; border-radius: 50%; overflow: hidden;display: inline-block; vertical-align: middle';
+					var css_rf_cover_left_w = 'position: absolute; width: 50%; height: 100%; overflow: hidden;left:0';
+					var css_rf_cover_right_w = 'position: absolute; width: 50%; height: 100%; overflow: hidden;right:0';
+					var css_rf_cover = 'display: block; width: 100%; height: 100%;background: #fff';
+					var css_rf_circle = 'width: 100%; height: 100%; box-sizing:border-box; border-radius: 50%; border: 4px solid red';
+
+					this.refreshIcon = this.topTip.getElementsByClassName('rf_rf_circle_w')[0];
+					this.leftIconCover = this.topTip.getElementsByClassName('rf_cover_left')[0];
+					this.rightIconCover = this.topTip.getElementsByClassName('rf_cover_right')[0];
+					this.iconCircle = this.topTip.getElementsByClassName('rf_circle')[0];
+
+					Util.insertRlue('.rf_rf_circle_w',css_rf_rf_circle_w);
+					Util.insertRlue('.rf_cover_left_w',css_rf_cover_left_w);
+					Util.insertRlue('.rf_cover_right_w',css_rf_cover_right_w);
+					Util.insertRlue('.rf_cover_left',css_rf_cover);
+					Util.insertRlue('.rf_cover_right',css_rf_cover);
+					Util.insertRlue('.rf_circle',css_rf_circle);
+
+					Util.insertRlue('.rotate_circle','animation:ani_rotate_circle 2s infinite;-webkit-animation:ani_rotate_circle 2s infinite');
+					Util.insertRlue('.rotate_circle .rf_cover_left','transform:rotate(60deg) !important;-webkit-transform:rotate(60deg) !important;');
+					Util.insertRlue('.rotate_circle .rf_cover_right','transform:rotate(180deg) !important;-webkit-transform:rotate(180deg) !important;');
+					Util.insertRlue('@keyframes ani_rotate_circle','0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)}');
+					Util.insertRlue('@-webkit-keyframes ani_rotate_circle','0%{-webkit-transform:rotate(0deg)} 100%{-webkit-transform:rotate(360deg)}');
+                }
             },
-            /**
-             * [_bindEvent 事件绑定函数]
-             * @param  {[Object]}   target    [目标对象]
-             * @param  {[String]}   eventType [事件类型]
-             * @param  {Function} callback  [回调函数]
-             */
+            //事件绑定函数
             _bindEvent: function(target,eventType,callback){
                 target.addEventListener(eventType,callback,false);
             },
@@ -481,6 +561,7 @@ define(function(require, exports, module) {
         return ScrollObj;
     }
     var Util = {
+    	styleSheet: null,
         getPrefixStyle: function(){
             var _elementStyle = document.createElement('div').style;
             var _vendor = false
@@ -513,7 +594,25 @@ define(function(require, exports, module) {
                 transformOrigin: _prefixStyle('transformOrigin'),
             };
             return style;
-        }
+        },
+        insertRlue: function(selectorText,cssText){
+	        var style = document.createElement('style');
+	        style.type = 'text/css';
+	        if(!this.styleSheet){
+	        	document.getElementsByTagName('head')[0].appendChild(style);
+	        	this.styleSheet = document.styleSheets[document.styleSheets.length-1];
+	        }
+	        _insertRule(this.styleSheet, selectorText, cssText, 0);
+		    function _insertRule(sheet, selectorText, cssText, position) {
+		        //如果是非IE
+		        if (sheet.insertRule) {
+		            sheet.insertRule(selectorText + "{" + cssText + "}", position);
+		        //如果是IE
+		        } else if (sheet.addRule) {
+		            sheet.addRule(selectorText, cssText, position);
+		        }
+		    }
+		}
     }
     return Scroll;
 })

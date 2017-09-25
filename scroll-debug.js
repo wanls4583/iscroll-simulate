@@ -24,7 +24,7 @@ define(function(require, exports, module) {
      * bottomLoadingTxt:底部加载中提示语,
      * bottomNomoreTxt:底部没有了提示语，
      * bottomLoadGoTxt:底部松手提示语,
-     * userRefreshIcon:是否使用刷新图标
+     * useRefreshIcon:是否使用刷新图标
      * }]
      */
     function Scroll(opt){
@@ -66,7 +66,7 @@ define(function(require, exports, module) {
                 this.bottomLoadGoTxt = opt.bottomLoadGoTxt||'';
                 this.bottomNomoreTxt = opt.bottomNomoreTxt||'';
                 this.autoLoad = opt.autoLoad;
-                this.userRefreshIcon = opt.autoLoad!=undefined?opt.autoLoad:true;
+                this.useRefreshIcon = opt.useRefreshIcon!=undefined?opt.useRefreshIcon:true;
 
                 this.nomore = false;//内容是否加载完成
                 this.topTip = null; //下拉提示
@@ -77,7 +77,7 @@ define(function(require, exports, module) {
                     this.scroller.style.overflow = 'visible';
                     this.wrapper.style.overflow = 'auto';
                 }else{
-                    this.barHeight = this.wrapper.clientHeight*(this.wrapper.clientHeight/this.scroller.clientHeight);
+                    this.barHeight = this.wrapper.clientHeight*(this.wrapper.clientHeight/this.wrapper.scrollHeight);
                     this.enableBar && (this.bar=this._createScrollBar()) && (this.bar.style.display = 'none');
                     this.scroller.style.overflow = 'visible';
                     this.wrapper.style.overflow = 'hidden';
@@ -85,13 +85,17 @@ define(function(require, exports, module) {
                 }
                 this.prefixStyle = Util.getPrefixStyle();
                 //最小偏移量
-                this.topOffsetY = -this.topTip.clientHeight;
+                if(this.useNativeScroll || this.useRefreshIcon){
+                    this.topOffsetY = 0;
+                }else{
+                    this.topOffsetY = -this.topTip.clientHeight;
+                }
                 //设置最大偏移量
-                this.maxOffsetY =  this.wrapper.clientHeight - this.scroller.clientHeight - this.bottomTip.clientHeight;
+                this.maxOffsetY =  this.wrapper.clientHeight - this.wrapper.scrollHeight;
                 //当前的偏移量
                 this.offsetY = this.topOffsetY;
                 //初始化位置
-                this._tranlate();
+                this._tranlate(this.scroller);
                 this._bindEvent(this.scroller, 'touchstart', function(e){
                     self._start(e);
                 });
@@ -101,14 +105,14 @@ define(function(require, exports, module) {
                 this._bindEvent(this.scroller, 'touchend', function(e){
                     self._end(e);
                 });
-                preScrollerHeight = this.scroller.clientHeight;
+                preScrollerHeight = this.wrapper.scrollHeight;
                 if(this.maxOffsetY > this.topOffsetY){
-                	this.bottomTip.innerHTML = this.bottomLoadingTxt;
-                	no = true;
+                    this.bottomTip.innerHTML = this.bottomLoadingTxt;
+                    no = true;
                 }
             },
             refresh: function(){
-            	var self = this;
+                var self = this;
                 if(!this.useNativeScroll){
                     if(this.offsetY > this.topOffsetY){
                         this.offsetY = this.topOffsetY;
@@ -116,32 +120,33 @@ define(function(require, exports, module) {
                         this.offsetY = this.maxOffsetY;
                     }
                     //设置最大偏移量
-                    this.maxOffsetY =  this.wrapper.clientHeight - this.scroller.clientHeight - this.bottomTip.clientHeight;
+                    this.maxOffsetY =  this.wrapper.clientHeight - this.wrapper.scrollHeight;
                     if(this.bar){
-                        this.barHeight = this.wrapper.clientHeight*(this.wrapper.clientHeight/(this.scroller.clientHeight+this.bottomTip.clientHeight));
+                        this.barHeight = this.wrapper.clientHeight*(this.wrapper.clientHeight/(this.wrapper.scrollHeight+this.bottomTip.clientHeight));
                         this.bar.style.height = this.barHeight+'px';
                     }
                 }else{
                     this.offsetY = this.topOffsetY;
                 }
                 setTimeout(function(){
-                	if(!self.userRefreshIcon){
-                		self.topTip.innerHTML = self.topRefreshTxt;
-                	}else{
-                		self.refreshIcon.className = 'rf_rf_circle_w';
-                	}
-                	self._tranlate(500);
+                    if(!self.useRefreshIcon){
+                        self.topTip.innerHTML = self.topRefreshTxt;
+                    }else{
+                        self.refreshIcon.className = 'rf_rf_circle_w';
+                        self._tranlate(self.topTip,500);
+                    }
+                    self._tranlate(self.scroller,500);
                 },500);
-                preScrollerHeight = this.scroller.clientHeight; 
+                preScrollerHeight = this.wrapper.scrollHeight; 
                 if(this.nomore){
-                	this.bottomTip.innerHTML = this.bottomNomoreTxt;
+                    this.bottomTip.innerHTML = this.bottomNomoreTxt;
                 }else{
-                	if(this.autoLoad){
-                		this.bottomTip.innerHTML = self.bottomLoadingTxt;
-                	}else{
-                		this.bottomTip.innerHTML = self.bottomLoadTxt;
-                	}
-                	
+                    if(this.autoLoad){
+                        this.bottomTip.innerHTML = self.bottomLoadingTxt;
+                    }else{
+                        this.bottomTip.innerHTML = self.bottomLoadTxt;
+                    }
+                    
                 }
             },
             setOffsetY: function(offsetY){
@@ -152,46 +157,51 @@ define(function(require, exports, module) {
                 if(!this.useNativeScroll){
                     //设置偏移量
                     this.offsetY =  offsetY;
-                    this._tranlate(300);
+                    this._tranlate(this.scroller,300);
                 }
             },
             setTopTip: function(txt){
-            	if(!this.userRefreshIcon){
-            		this.topTip.innerHTML = txt;
-            	}
+                if(!this.useRefreshIcon){
+                    this.topTip.innerHTML = txt;
+                }
             },
             setBottomTip: function(){
                 this.bottomTip.innerHTML = txt;
             },
             setNomore: function(nomore){
-            	this.nomore = nomore;
-            	if(this.nomore){
-            		this.bottomTip.innerHTML = this.bottomNomoreTxt;
-            	}else if(this.autoLoad){
-            		this.bottomTip.innerHTML = self.bottomLoadingTxt;
-            	}else{
-            		this.bottomTip.innerHTML = self.bottomLoadTxt;
-            	}
+                this.nomore = nomore;
+                if(this.nomore){
+                    this.bottomTip.innerHTML = this.bottomNomoreTxt;
+                }else if(this.autoLoad){
+                    this.bottomTip.innerHTML = self.bottomLoadingTxt;
+                }else{
+                    this.bottomTip.innerHTML = self.bottomLoadTxt;
+                }
             },
             /**
              * [_tranlate 移动函数]
+             * @param  {[DOM]} target [目标对象]
              * @param  {[Number]} transitionDuration [过渡时间，为0时不会触发transitionend事件]
              */
-            _tranlate: function(transitionDuration){
+            _tranlate: function(target,transitionDuration){
+                if((target==this.scroller && this.offsetY>this.topOffsetY && this.useRefreshIcon) || 
+                    (target==this.topTip && this.offsetY<this.topOffsetY && this.useRefreshIcon)){
+                    return;
+                }
                 if(!transitionDuration)
                     transitionDuration = 0;
                 if(transitionDuration){
-                    this.scroller.style[this.prefixStyle.transitionProperty] = 'transform';
+                    target.style[this.prefixStyle.transitionProperty] = 'transform';
                 }else{
-                    this.scroller.style[this.prefixStyle.transitionProperty] = 'none';
+                    target.style[this.prefixStyle.transitionProperty] = 'none';
                 }
-                this.scroller.style[this.prefixStyle.transformOrigin] = '0px 0px 0px';
-                this.scroller.style[this.prefixStyle.transitionTimingFunction] = 'cubic-bezier(0.33, 0.66, 0.66, 1)';
-                this.scroller.style[this.prefixStyle.transitionDuration] = transitionDuration+'ms';
+                target.style[this.prefixStyle.transformOrigin] = '0px 0px 0px';
+                target.style[this.prefixStyle.transitionTimingFunction] = 'cubic-bezier(0.33, 0.66, 0.66, 1)';
+                target.style[this.prefixStyle.transitionDuration] = transitionDuration+'ms';
                 //translateZ(0)用来启动硬件加速
-                this.scroller.style[this.prefixStyle.transform] = 'translateY('+this.offsetY+'px) translateZ(0)';
+                target.style[this.prefixStyle.transform] = 'translateY('+this.offsetY+'px) translateZ(0)';
 
-                if(this.bar){
+                if(this.bar && target == this.scroller){
                     var offsetY = 0;
                     if(this.offsetY<this.topOffsetY && this.offsetY>this.maxOffsetY){
                         offsetY = (this.offsetY-this.topOffsetY)/this.maxOffsetY*(this.wrapper.clientHeight-this.barHeight);
@@ -256,7 +266,7 @@ define(function(require, exports, module) {
                         window.getComputedStyle ?window.getComputedStyle(this.bar, null) : null || this.scroller.currentStyle;
                     }
                     this.offsetY = Number(matrix.replace(/matrix\(|\)/g,'').split(',')[5]);
-                    this._tranlate();
+                    this._tranlate(this.scroller);
                 }
                 if(!this.useNativeScroll){
                     if(this.enableFadeout){
@@ -294,78 +304,82 @@ define(function(require, exports, module) {
                         isOutBottom = true;
                         disY *= 0.25;
                         if(!this.autoLoad){//手动加载
-                        	if(this.nomore){
-                        		this.bottomTip.innerHTML = this.bottomNomoreTxt;
-                        	}else if(this.offsetY < this.maxOffsetY - this.bottomTip.clientHeight){
-	                            this.bottomTip.innerHTML = this.bottomLoadGoTxt;
-	                        }else if(this.offsetY < this.maxOffsetY){
-	                            this.bottomTip.innerHTML = this.bottomLoadTxt;
-	                        }
+                            if(this.nomore){
+                                this.bottomTip.innerHTML = this.bottomNomoreTxt;
+                            }else if(this.offsetY < this.maxOffsetY - this.bottomTip.clientHeight){
+                                this.bottomTip.innerHTML = this.bottomLoadGoTxt;
+                            }else if(this.offsetY < this.maxOffsetY){
+                                this.bottomTip.innerHTML = this.bottomLoadTxt;
+                            }
                         }
-                        
+                        this.offsetY += disY;
+                        this._tranlate(this.scroller);
                     }else if(this.offsetY > this.topOffsetY && disY > 0){
                         isOutTop = true;
-                        disY *= 0.25;
-                    	if(this.offsetY > 0){
-                    		if(this.userRefreshIcon){
-                        		this._rotateIcon();
-                        	}else{
-                        		this.topTip.innerHTML = this.topRefreshGoTxt;
-                        	}
+                        if(this.useRefreshIcon){
+                            disY *= 0.5;
+                            this.offsetY += disY;
+                            this._rotateIcon();
+                            this._tranlate(this.topTip);
                         }else{
-                        	if(this.userRefreshIcon){
-                        		this._rotateIcon();
-                        	}else{
-                        		this.topTip.innerHTML = this.topRefreshTxt;
-                        	}
+                            disY *= 0.25;
+                            if(this.offsetY > this.topOffsetY+this.topTip.clientHeight){
+                                this.topTip.innerHTML = this.topRefreshGoTxt;
+                            }else{
+                               
+                                this.topTip.innerHTML = this.topRefreshTxt;
+                            }
+                            this.offsetY += disY;
+                            this._tranlate(this.scroller);
                         }
+                    }else{
+                        this.offsetY += disY;
+                        this._tranlate(this.scroller);
                     }
                     //自动加载提示
                     if(this.autoLoad){
-                    	if(this.nomore){
-                    		this.bottomTip.innerHTML = this.bottomNomoreTxt;
-                    	}else if(this.offsetY <= this.maxOffsetY+this.bottomTip.clientHeight && this.maxOffsetY<0){
-                    		this.bottomTip.innerHTML = this.bottomLoadingTxt;
-                    	}
+                        if(this.nomore){
+                            this.bottomTip.innerHTML = this.bottomNomoreTxt;
+                        }else if(this.offsetY <= this.maxOffsetY+this.bottomTip.clientHeight && this.maxOffsetY<0){
+                            this.bottomTip.innerHTML = this.bottomLoadingTxt;
+                        }
                     }
-                    this.offsetY += disY;
-                    this._tranlate();
                 }else{//自定义滚动
-                    if(Math.abs(this.wrapper.scrollTop-Math.abs(this.wrapper.clientHeight-this.scroller.clientHeight)) < 2 && this.offsetY+disY < this.topOffsetY){
+                    if(Math.abs(this.wrapper.scrollTop-Math.abs(this.wrapper.clientHeight-this.wrapper.scrollHeight)) < 2 && this.offsetY+disY < this.topOffsetY){
                         e.preventDefault();
                         e.stopPropagation();
                         isOutBottom = true;
                         disY *= 0.25;
                         this.offsetY += disY;
-                        this._tranlate();
+                        this._tranlate(this.scroller);
                         if(!this.autoLoad){//手动加载
-                        	if(this.nomore){
-                        		this.bottomTip.innerHTML = this.bottomNomoreTxt;
-                        	}else if(this.offsetY < this.topOffsetY - this.bottomTip.clientHeight){
-	                            this.bottomTip.innerHTML = this.bottomLoadGoTxt;
-	                        }else if(this.offsetY < this.topOffsetY){
-	                            this.bottomTip.innerHTML = this.bottomLoadTxt;
-	                        }
+                            if(this.nomore){
+                                this.bottomTip.innerHTML = this.bottomNomoreTxt;
+                            }else if(this.offsetY < this.topOffsetY - this.bottomTip.clientHeight){
+                                this.bottomTip.innerHTML = this.bottomLoadGoTxt;
+                            }else if(this.offsetY < this.topOffsetY){
+                                this.bottomTip.innerHTML = this.bottomLoadTxt;
+                            }
                         }
                     }else if(this.wrapper.scrollTop == 0 && this.offsetY+disY > this.topOffsetY){
                         e.preventDefault();
                         e.stopPropagation();
                         isOutTop = true;
-                        disY *= 0.25;
-                        this.offsetY += disY;
-                        this._tranlate();
-                    	if(this.offsetY > 0){
-                    		if(this.userRefreshIcon){
-                        		this._rotateIcon();
-                        	}else{
-                        		this.topTip.innerHTML = this.topRefreshGoTxt;
-                        	}
+                        if(this.useRefreshIcon){
+                            disY *= 0.5;
+                            this.offsetY += disY;
+                            this._rotateIcon();
+                            this._tranlate(this.topTip);
                         }else{
-                        	if(this.userRefreshIcon){
-                        		this._rotateIcon();
-                        	}else{
-                        		this.topTip.innerHTML = this.topRefreshTxt;
-                        	}
+                            disY *= 0.25;
+                            if(this.offsetY > this.topOffsetY+this.topTip.clientHeight){
+                                this.topTip.innerHTML = this.topRefreshGoTxt;
+                            }else{
+                               
+                                this.topTip.innerHTML = this.topRefreshTxt;
+                            }
+                            this.offsetY += disY;
+                            this._tranlate(this.scroller);
                         }
                     }else{
                         isOutTop = false;
@@ -374,11 +388,11 @@ define(function(require, exports, module) {
                     }
                     //自动加载提示
                     if(this.autoLoad){
-                    	if(this.nomore){
-                    		this.bottomTip.innerHTML = this.bottomNomoreTxt;
-                    	}else if(this.wrapper.scrollTop-Math.abs(this.wrapper.clientHeight-this.scroller.clientHeight) <= this.bottomTip.clientHeight){
-                    		this.bottomTip.innerHTML = this.bottomLoadingTxt;
-                    	}
+                        if(this.nomore){
+                            this.bottomTip.innerHTML = this.bottomNomoreTxt;
+                        }else if(this.wrapper.scrollTop-Math.abs(this.wrapper.clientHeight-this.wrapper.scrollHeight) <= this.bottomTip.clientHeight){
+                            this.bottomTip.innerHTML = this.bottomLoadingTxt;
+                        }
                     }
                 }
                 typeof this.onMove === 'function' && this.onMove();
@@ -390,13 +404,13 @@ define(function(require, exports, module) {
                 endTime = new Date().getTime();
                 var duration = endTime - startTime;
                 if(!this.useNativeScroll){
-                	//自动加载
-                	if(this.autoLoad && !this.nomore){
-                		this.bottomTip.innerHTML = this.bottomLoadingTxt;
-                		if(this.offsetY <= this.maxOffsetY+this.bottomTip.clientHeight && this.maxOffsetY<0 && typeof this.onLoad === 'function'){
-                			this.onLoad();
-                		}
-                	}
+                    //自动加载
+                    if(this.autoLoad && !this.nomore){
+                        this.bottomTip.innerHTML = this.bottomLoadingTxt;
+                        if(this.offsetY <= this.maxOffsetY+this.bottomTip.clientHeight && this.maxOffsetY<0 && typeof this.onLoad === 'function'){
+                            this.onLoad();
+                        }
+                    }
                     if(isOutBottom){
                         this.offsetY = this.maxOffsetY;
                         //手动加载
@@ -405,24 +419,32 @@ define(function(require, exports, module) {
                             this.onLoad();
                         }
                         duration = Math.abs(preOffsetY - this.offsetY)/wrapper.clientHeight*1500;
+                        this._tranlate(this.scroller,duration);
                     }else if(isOutTop){
                         this.offsetY = this.topOffsetY;
-                        if(typeof this.onRefresh === 'function' && preOffsetY > 0){
-                        	if(!this.userRefreshIcon){
-                            	this.topTip.innerHTML = this.topRefreshingTxt;
-                            }else{
-                            	this.refreshIcon.className = 'rf_rf_circle_w rotate_circle';
+                        if(this.useRefreshIcon){
+                            if(typeof this.onRefresh === 'function' && preOffsetY > this.topTip.clientHeight*2){
+                                this.refreshIcon.className = 'rf_rf_circle_w rotate_circle';
+                                this.offsetY = this.topTip.clientHeight*2;
+                                this.onRefresh();
                             }
-                            this.offsetY = 0;
-                            this.onRefresh();
+                            duration = Math.abs(preOffsetY - this.offsetY)/wrapper.clientHeight*1500;
+                            this._tranlate(this.topTip,duration);
+                        }else{
+                            if(typeof this.onRefresh === 'function' && preOffsetY > this.topOffsetY+this.topTip.clientHeight){
+                                this.topTip.innerHTML = this.topRefreshingTxt;
+                                this.offsetY = this.topOffsetY+this.topTip.clientHeight;
+                                this.onRefresh();
+                            }
+                            duration = Math.abs(preOffsetY - this.offsetY)/wrapper.clientHeight*1500;
+                            this._tranlate(this.scroller,duration);
                         }
-                        duration = Math.abs(preOffsetY - this.offsetY)/wrapper.clientHeight*1500;
                     }else{
                         var obj = this._momentum(preY,startY,duration);
                         this.offsetY = obj.destOffsetY;
                         duration = obj.duration;
+                        this._tranlate(this.scroller,duration);
                     }
-                    this._tranlate(duration);
                     isOutTop = false;
                     isOutBottom = false;
                     clearTimeout(barFadeTimeoutId);
@@ -434,13 +456,13 @@ define(function(require, exports, module) {
                         }
                     },duration+500);
                 }else{
-                	//自动加载
-                	if(this.autoLoad && !this.nomore){
-                		this.bottomTip.innerHTML = this.bottomLoadingTxt;
-                		if( typeof this.onLoad === 'function' && Math.abs(this.wrapper.scrollTop-Math.abs(this.wrapper.clientHeight-this.scroller.clientHeight)) < this.bottomTip.clientHeight){
-                			this.onLoad();
-                		}
-                	}
+                    //自动加载
+                    if(this.autoLoad && !this.nomore){
+                        this.bottomTip.innerHTML = this.bottomLoadingTxt;
+                        if( typeof this.onLoad === 'function' && Math.abs(this.wrapper.scrollTop-Math.abs(this.wrapper.clientHeight-this.wrapper.scrollHeight)) < this.bottomTip.clientHeight){
+                            this.onLoad();
+                        }
+                    }
                     if(isOutBottom){
                         this.offsetY = this.topOffsetY;
                         //手动加载
@@ -449,45 +471,51 @@ define(function(require, exports, module) {
                             this.onLoad();
                         }
                         duration = Math.abs(preOffsetY-this.topOffsetY)/wrapper.clientHeight*1500;
-                        this._tranlate(duration);
+                        this._tranlate(this.scroller,duration);
                     }else if(isOutTop){
                         this.offsetY = this.topOffsetY;
-                        if(typeof this.onRefresh === 'function' && preOffsetY > 0){
-                        	if(!this.userRefreshIcon){
-                            	this.topTip.innerHTML = this.topRefreshingTxt;
-                            }else{
-                            	this.refreshIcon.className = 'rf_rf_circle_w rotate_circle';
+                        if(this.useRefreshIcon){
+                            if(typeof this.onRefresh === 'function' && preOffsetY > this.topTip.clientHeight*2){
+                                this.refreshIcon.className = 'rf_rf_circle_w rotate_circle';
+                                this.offsetY = this.topTip.clientHeight*2;
+                                this.onRefresh();
                             }
-                            this.offsetY = 0;
-                            this.onRefresh();
+                            duration = Math.abs(preOffsetY - this.offsetY)/wrapper.clientHeight*1500;
+                            this._tranlate(this.topTip,duration);
+                        }else{
+                            if(typeof this.onRefresh === 'function' && preOffsetY > this.topOffsetY+this.topTip.clientHeight){
+                                this.topTip.innerHTML = this.topRefreshingTxt;
+                                this.offsetY = this.topOffsetY+this.topTip.clientHeight;
+                                this.onRefresh();
+                            }
+                            duration = Math.abs(preOffsetY - this.offsetY)/wrapper.clientHeight*1500;
+                            this._tranlate(this.scroller,duration);
                         }
-                        duration = Math.abs(preOffsetY-this.topOffsetY)/wrapper.clientHeight*1500;
-                        this._tranlate(duration);
                     }else{
                         this.offsetY = this.topOffsetY;
                         duration = 0;
                     }
                 }
                 if(this.nomore){
-                	this.bottomTip.innerHTML = this.bottomNomoreTxt;
+                    this.bottomTip.innerHTML = this.bottomNomoreTxt;
                 }
             },
             _rotateIcon: function(){
-            	if(this.offsetY > this.topOffsetY){
-            		var distance = Math.abs(this.offsetY-this.topOffsetY);
-            		var deg = distance/this.topTip.clientHeight*180;
-            		deg = deg>360?360:deg;
-            		if(deg<180){
-            			this.leftIconCover.style[this.prefixStyle.transform] = 'rotate(0deg)';
-            			this.rightIconCover.style[this.prefixStyle.transformOrigin] = 'left center';
-            			this.rightIconCover.style[this.prefixStyle.transform] = 'rotate('+deg+'deg)';
-            		}else{
-            			this.rightIconCover.style[this.prefixStyle.transformOrigin] = 'left center';
-            			this.rightIconCover.style[this.prefixStyle.transform] = 'rotate('+180+'deg)';
-            			this.leftIconCover.style[this.prefixStyle.transformOrigin] = 'right center';
-            			this.leftIconCover.style[this.prefixStyle.transform] = 'rotate('+(deg-180)+'deg)';
-            		}
-            	}
+                if(this.offsetY > this.topOffsetY){
+                    var distance = Math.abs(this.offsetY-this.topOffsetY);
+                    var deg = distance/this.topTip.clientHeight*180;
+                    deg = deg>360?360:deg;
+                    if(deg<180){
+                        this.leftIconCover.style[this.prefixStyle.transform] = 'rotate(0deg)';
+                        this.rightIconCover.style[this.prefixStyle.transformOrigin] = 'left center';
+                        this.rightIconCover.style[this.prefixStyle.transform] = 'rotate('+deg+'deg)';
+                    }else{
+                        this.rightIconCover.style[this.prefixStyle.transformOrigin] = 'left center';
+                        this.rightIconCover.style[this.prefixStyle.transform] = 'rotate('+180+'deg)';
+                        this.leftIconCover.style[this.prefixStyle.transformOrigin] = 'right center';
+                        this.leftIconCover.style[this.prefixStyle.transform] = 'rotate('+(deg-180)+'deg)';
+                    }
+                }
             },
             //创建滚动条
             _createScrollBar: function(){
@@ -504,50 +532,58 @@ define(function(require, exports, module) {
             },
             //创建提示语dom元素
             _createTip: function(){
+                var topTipCss = 'width:100%;display:block;line-height:60px;height:60px;text-align:center';
+                var bottomTipCss = 'width:100%;display:block;line-height:60px;height:60px;text-align:center';
                 this.topTip = document.createElement('div');
                 this.bottomTip = document.createElement('div');
-                var topTipCss = 'width:100%;display:block;line-height:60px;height:60px;text-align:center';
-                var bottomTipCss = 'position:absolute;width:100%;display:block;line-height:60px;height:60px;text-align:center';
-                this.topTip.setAttribute('style',topTipCss);
-                this.topTip.innerHTML = this.topRefreshTxt||'';
-                this.topTip.setAttribute('class', this.topTipClassName?this.topTipClassName:'');
-                this.bottomTip.setAttribute('style',bottomTipCss+';bottom:-60px');
-                this.bottomTip.innerHTML = this.bottomLoadTxt||'';
-                this.bottomTip.setAttribute('class', this.bottomTipClassName?this.bottomTipClassName:'');
-                this.scroller.insertBefore(this.bottomTip,this.scroller.firstElementChild);
+                this.topTip.innerHTML = this.topRefreshTxt;
+                this.topTip.setAttribute('class', 'my_top_tip '+(this.topTipClassName?this.topTipClassName:''));
+                this.bottomTip.innerHTML = this.autoLoad?this.bottomLoadingTxt:this.bottomLoadTxt;
+                this.bottomTip.setAttribute('class', 'my_bottom_tip '+(this.bottomTipClassName?this.bottomTipClassName:''));
                 this.scroller.insertBefore(this.topTip,this.scroller.firstElementChild);
-
+                this.scroller.appendChild(this.bottomTip);
+                Util.insertRlue('.my_top_tip',topTipCss);
+                Util.insertRlue('.my_bottom_tip',bottomTipCss);
+                if(this.useNativeScroll){
+                    this.topTip.style.position = 'absolute';
+                    this.topTip.style.top = -this.topTip.clientHeight+'px';
+                }
                 //创建刷新图标
-                if(this.userRefreshIcon){
-                	this.topTip.style.fontSize = '0px';
-                	this.topTip.innerHTML = '<div class="rf_rf_circle_w">\
-										        <div class="rf_cover_left_w"><div class="rf_cover_left"></div></div>\
-										        <div class="rf_cover_right_w"><div class="rf_cover_right"></div></div>\
-										        <div class="rf_circle"></div>\
-										    </div>';
-					var css_rf_rf_circle_w = 'position: relative; width: 40px; height: 40px; border-radius: 50%; overflow: hidden;display: inline-block; vertical-align: middle';
-					var css_rf_cover_left_w = 'position: absolute; width: 50%; height: 100%; overflow: hidden;left:0';
-					var css_rf_cover_right_w = 'position: absolute; width: 50%; height: 100%; overflow: hidden;right:0';
-					var css_rf_cover = 'display: block; width: 100%; height: 100%;background: #fff';
-					var css_rf_circle = 'width: 100%; height: 100%; box-sizing:border-box; border-radius: 50%; border: 4px solid red';
+                if(this.useRefreshIcon){
+                    var fixedTopTipCss = 'width:60px;position:absolute;top:-60px;left:50%;margin-left:-30px;z-index:99;background:#fff;border-radius:50%;box-shadow:1px 1px 5px rgba(0,0,0,0.1)';
+                    Util.insertRlue('.my_top_tip',fixedTopTipCss);
+                    this.topTip.style.fontSize = '0px';
+                    this.topTip.style.width = '60px';
+                    this.topTip.style.position = 'fixed';
+                    this.topTip.innerHTML = '<div class="rf_rf_circle_w">\
+                                                <div class="rf_cover_left_w"><div class="rf_cover_left"></div></div>\
+                                                <div class="rf_cover_right_w"><div class="rf_cover_right"></div></div>\
+                                                <div class="rf_circle"></div>\
+                                            </div>';
 
-					this.refreshIcon = this.topTip.getElementsByClassName('rf_rf_circle_w')[0];
-					this.leftIconCover = this.topTip.getElementsByClassName('rf_cover_left')[0];
-					this.rightIconCover = this.topTip.getElementsByClassName('rf_cover_right')[0];
-					this.iconCircle = this.topTip.getElementsByClassName('rf_circle')[0];
+                    var css_rf_rf_circle_w = 'position: relative; width: 40px; height: 40px; border-radius: 50%;display: inline-block; vertical-align: middle';
+                    var css_rf_cover_left_w = 'position: absolute; width: 52%; height: 104%; overflow: hidden;left:-2%;top:-2%';
+                    var css_rf_cover_right_w = 'position: absolute; width: 53%; height: 104%; overflow: hidden;right:-2%;top:-2%';
+                    var css_rf_cover = 'display: block; width: 100%; height: 100%;background: #fff';
+                    var css_rf_circle = 'width: 100%; height: 100%; box-sizing:border-box; border-radius: 50%; border: 4px solid red';
 
-					Util.insertRlue('.rf_rf_circle_w',css_rf_rf_circle_w);
-					Util.insertRlue('.rf_cover_left_w',css_rf_cover_left_w);
-					Util.insertRlue('.rf_cover_right_w',css_rf_cover_right_w);
-					Util.insertRlue('.rf_cover_left',css_rf_cover);
-					Util.insertRlue('.rf_cover_right',css_rf_cover);
-					Util.insertRlue('.rf_circle',css_rf_circle);
+                    this.refreshIcon = this.topTip.getElementsByClassName('rf_rf_circle_w')[0];
+                    this.leftIconCover = this.topTip.getElementsByClassName('rf_cover_left')[0];
+                    this.rightIconCover = this.topTip.getElementsByClassName('rf_cover_right')[0];
+                    this.iconCircle = this.topTip.getElementsByClassName('rf_circle')[0];
 
-					Util.insertRlue('.rotate_circle','animation:ani_rotate_circle 2s infinite;-webkit-animation:ani_rotate_circle 2s infinite');
-					Util.insertRlue('.rotate_circle .rf_cover_left','transform:rotate(60deg) !important;-webkit-transform:rotate(60deg) !important;');
-					Util.insertRlue('.rotate_circle .rf_cover_right','transform:rotate(180deg) !important;-webkit-transform:rotate(180deg) !important;');
-					Util.insertRlue('@keyframes ani_rotate_circle','0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)}');
-					Util.insertRlue('@-webkit-keyframes ani_rotate_circle','0%{-webkit-transform:rotate(0deg)} 100%{-webkit-transform:rotate(360deg)}');
+                    Util.insertRlue('.rf_rf_circle_w',css_rf_rf_circle_w);
+                    Util.insertRlue('.rf_cover_left_w',css_rf_cover_left_w);
+                    Util.insertRlue('.rf_cover_right_w',css_rf_cover_right_w);
+                    Util.insertRlue('.rf_cover_left',css_rf_cover);
+                    Util.insertRlue('.rf_cover_right',css_rf_cover);
+                    Util.insertRlue('.rf_circle',css_rf_circle);
+
+                    Util.insertRlue('.rotate_circle','animation:ani_rotate_circle 2s infinite;-webkit-animation:ani_rotate_circle 2s infinite');
+                    Util.insertRlue('.rotate_circle .rf_cover_left','transform:rotate(60deg) !important;-webkit-transform:rotate(60deg) !important;');
+                    Util.insertRlue('.rotate_circle .rf_cover_right','transform:rotate(180deg) !important;-webkit-transform:rotate(180deg) !important;');
+                    Util.insertRlue('@keyframes ani_rotate_circle','0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)}');
+                    Util.insertRlue('@-webkit-keyframes ani_rotate_circle','0%{-webkit-transform:rotate(0deg)} 100%{-webkit-transform:rotate(360deg)}');
                 }
             },
             //事件绑定函数
@@ -561,7 +597,7 @@ define(function(require, exports, module) {
         return ScrollObj;
     }
     var Util = {
-    	styleSheet: null,
+        styleSheet: null,
         getPrefixStyle: function(){
             var _elementStyle = document.createElement('div').style;
             var _vendor = false
@@ -596,23 +632,23 @@ define(function(require, exports, module) {
             return style;
         },
         insertRlue: function(selectorText,cssText){
-	        var style = document.createElement('style');
-	        style.type = 'text/css';
-	        if(!this.styleSheet){
-	        	document.getElementsByTagName('head')[0].appendChild(style);
-	        	this.styleSheet = document.styleSheets[document.styleSheets.length-1];
-	        }
-	        _insertRule(this.styleSheet, selectorText, cssText, 0);
-		    function _insertRule(sheet, selectorText, cssText, position) {
-		        //如果是非IE
-		        if (sheet.insertRule) {
-		            sheet.insertRule(selectorText + "{" + cssText + "}", position);
-		        //如果是IE
-		        } else if (sheet.addRule) {
-		            sheet.addRule(selectorText, cssText, position);
-		        }
-		    }
-		}
+            var style = document.createElement('style');
+            style.type = 'text/css';
+            if(!this.styleSheet){
+                document.getElementsByTagName('head')[0].appendChild(style);
+                this.styleSheet = document.styleSheets[document.styleSheets.length-1];
+            }
+            _insertRule(this.styleSheet, selectorText, cssText, 0);
+            function _insertRule(sheet, selectorText, cssText, position) {
+                //如果是非IE
+                if (sheet.insertRule) {
+                    sheet.insertRule(selectorText + "{" + cssText + "}", position);
+                //如果是IE
+                } else if (sheet.addRule) {
+                    sheet.addRule(selectorText, cssText, position);
+                }
+            }
+        }
     }
     return Scroll;
 })

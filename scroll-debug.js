@@ -1,4 +1,4 @@
-define(function(require, exports, module) {
+// define(function(require, exports, module) {
     // 'use strict';
     /**
      * @Author   Lisong
@@ -6,25 +6,18 @@ define(function(require, exports, module) {
      * @TODO
      * @param    {[Object]}   
      * opt [{
-     * wrapperId:外部容器id,
-     * scrollerId:内容容器id,
+     * wrapper:外部容器,
+     * scroller:内容容器,
      * onLoad:加载回调,
      * onRefresh:刷新回调,
+     * onStart:开始触摸回调,
      * onMove:移动回调,
+     * onEnd: 触摸结束,
+     * onBottom:滚动到底部回调,
      * barClassName:滚动条样式类,
-     * topTipClassName:拉提示样式类,
-     * bottomTipClassName:上拉提示样式类,
      * enableBar:是否使用自定义滚动条(仅当useNativeScroll为false时才有意义),
      * enableFadeout:是否允许自定义滚动条渐隐(仅当enableBar为true时才有意义),
-     * useNativeScroll:是否使用浏览器自带滚动,
-     * topRefreshTxt:顶部刷新提示语,
-     * topRefreshingTxt:顶部刷新中提示语,
-     * topRefreshGoTxt:顶部松手提示语,
-     * bottomLoadTxt:底部加载提示语,
-     * bottomLoadingTxt:底部加载中提示语,
-     * bottomNomoreTxt:底部没有了提示语，
-     * bottomLoadGoTxt:底部松手提示语,
-     * useRefreshIcon:是否使用刷新图标
+     * useNativeScroll:是否使用浏览器自带滚动
      * }]
      */
     function Scroll(opt){
@@ -38,44 +31,49 @@ define(function(require, exports, module) {
             barFadeTimeoutId = null,//滚动条消失计时器
             baunceTimeoutId = null,//回弹计时器
             barOpacity = 1,//滚动条初始透明度
-            preScrollerHeight = 0;//记录内容高度
-            
+            preScrollerHeight = 0,//记录内容高度
+            /*滑动过程中是否有向上滑动,某些浏览器默认自带下拉回弹效果，
+            如果scroll有向上滑动过，再向下滑动时将无法阻止浏览器默认下拉，
+            而浏览器默认下拉将停止触发触摸事件，将引起刷新icon不能回弹的bug
+            */
+            hasSlideUp = false,
+            allListener = [];
             
         var ScrollObj = {
             init: function(opt){
                 var self = this;
+                var emptyCb = function(){};
                 //滚动区域
-                this.wrapper = document.getElementById(opt.wrapperId);
+                this.wrapper = opt.wrapper;
                 //滚动的内容
-                this.scroller = document.getElementById(opt.scrollerId);
+                this.scroller = opt.scroller;
                 this.bar = null;
                 this.barClassName = opt.barClassName;
-                this.topTipClassName = opt.topTipClassName;
-                this.bottomTipClassName = opt.bottomTipClassName;
                 this.enableFadeout = opt.enableFadeout;
                 this.useNativeScroll = opt.useNativeScroll;
                 this.enableBar = opt.enableBar;
-                this.onMove = opt.onMove;
-                this.onLoad = opt.onLoad;
-                this.onRefresh = opt.onRefresh;
-                this.topRefreshTxt = opt.topRefreshTxt||'';
-                this.topRefreshingTxt = opt.topRefreshingTxt||'';
-                this.topRefreshGoTxt = opt.topRefreshGoTxt||'';
-                this.bottomLoadTxt = opt.bottomLoadTxt||'';
-                this.bottomLoadingTxt = opt.bottomLoadingTxt||'';
-                this.bottomLoadGoTxt = opt.bottomLoadGoTxt||'';
-                this.bottomNomoreTxt = opt.bottomNomoreTxt||'';
+                this.onStart = opt.onStart||emptyCb;
+                this.onMove = opt.onMove||emptyCb;
+                this.onBottom = opt.onBottom||emptyCb;
+                this.onEnd = opt.onEnd||emptyCb;
+                this.onLoad = opt.onLoad||emptyCb;
+                this.onRefresh = opt.onRefresh||emptyCb;
                 this.autoLoad = opt.autoLoad;
-                this.useRefreshIcon = opt.useRefreshIcon!=undefined?opt.useRefreshIcon:true;
-
-                this.nomore = false;//内容是否加载完成
-                this.topTip = null; //下拉提示
-                this.bottomTip = null; //上拉提示
-                //创建提示语dom
-                this._createTip();
+                this.topTip = opt.topTip;
+                this.bottomTip = opt.bottomTip;
+                this.nomore = false;
+                this.topTipHeight = 0;
+                this.bottomTipHeight = 0;
+                if(this.topTip){
+                    this.topTip.style.display = 'block';
+                    this.topTipHeight = this.topTip.clientHeight;
+                }
+                this.barHeight = this.wrapper.clientHeight*(this.wrapper.clientHeight/this.wrapper.scrollHeight);
+                this.enableBar && (this.bar=this._createScrollBar()) && (this.bar.style.display = 'none');
+                this.prefixStyle = Util.getPrefixStyle();
                 if(this.useNativeScroll){
-                    this.scroller.style.overflow = 'visible';
                     this.wrapper.style.overflow = 'auto';
+                    this.scroller.style.marginBottom = '-'+ this.topTipHeight + 'px';
                 }else{
                     this.barHeight = this.wrapper.clientHeight*(this.wrapper.clientHeight/this.wrapper.scrollHeight);
                     this.enableBar && (this.bar=this._createScrollBar()) && (this.bar.style.display = 'none');
@@ -83,71 +81,58 @@ define(function(require, exports, module) {
                     this.wrapper.style.overflow = 'hidden';
                     this.wrapper.style.position = 'relative';
                 }
-                this.prefixStyle = Util.getPrefixStyle();
                 //最小偏移量
-                if(this.useNativeScroll || this.useRefreshIcon){
-                    this.topOffsetY = 0;
-                }else{
-                    this.topOffsetY = -this.topTip.clientHeight;
-                }
+                this.topOffsetY = -this.topTipHeight;
                 //设置最大偏移量
-                this.maxOffsetY =  this.wrapper.clientHeight - this.wrapper.scrollHeight;
+                this.maxOffsetY =  this.wrapper.clientHeight - this.scroller.clientHeight;
                 //当前的偏移量
                 this.offsetY = this.topOffsetY;
                 //初始化位置
                 this._tranlate(this.scroller);
-                this._bindEvent(this.scroller, 'touchstart', function(e){
+                this._bindEvent(this.wrapper, 'touchstart', function(e){
                     self._start(e);
                 });
-                this._bindEvent(this.scroller, 'touchmove', function(e){
+                this._bindEvent(this.wrapper, 'touchmove', function(e){
                     self._move(e);
                 });
-                this._bindEvent(this.scroller, 'touchend', function(e){
+                this._bindEvent(this.wrapper, 'touchend', function(e){
                     self._end(e);
                 });
+                this._bindEvent(window, 'resize', function(e){
+                    self.refresh();
+                });
+                this._bindEvent(this.wrapper, 'scroll', function(e){
+                    //自动加载
+                    if(self.useNativeScroll){
+                        if(Math.abs(self.wrapper.scrollTop-Math.abs(self.wrapper.clientHeight-self.wrapper.scrollHeight)) <= self.bottomTipHeight){
+                            self.onBottom();
+                            if(self.autoLoad && !self.nomore){
+                                self.onLoad();
+                            }
+                        }
+                    }
+                });
                 preScrollerHeight = this.wrapper.scrollHeight;
-                if(this.maxOffsetY > this.topOffsetY){
-                    this.bottomTip.innerHTML = this.bottomLoadingTxt;
-                    no = true;
-                }
             },
             refresh: function(){
                 var self = this;
                 if(!this.useNativeScroll){
-                    if(this.offsetY > this.topOffsetY){
+                    if(this.offsetY >= this.topOffsetY){
                         this.offsetY = this.topOffsetY;
                     }else if(this.offsetY <= this.maxOffsetY){
                         this.offsetY = this.maxOffsetY;
                     }
                     //设置最大偏移量
-                    this.maxOffsetY =  this.wrapper.clientHeight - this.wrapper.scrollHeight;
+                    this.maxOffsetY =  this.wrapper.clientHeight - this.scroller.clientHeight;
                     if(this.bar){
-                        this.barHeight = this.wrapper.clientHeight*(this.wrapper.clientHeight/(this.wrapper.scrollHeight+this.bottomTip.clientHeight));
+                        this.barHeight = this.wrapper.clientHeight*(this.wrapper.clientHeight/(this.wrapper.scrollHeight+this.bottomTipHeight));
                         this.bar.style.height = this.barHeight+'px';
                     }
                 }else{
                     this.offsetY = this.topOffsetY;
                 }
-                setTimeout(function(){
-                    if(!self.useRefreshIcon){
-                        self.topTip.innerHTML = self.topRefreshTxt;
-                    }else{
-                        self.refreshIcon.className = 'rf_rf_circle_w';
-                        self._tranlate(self.topTip,500);
-                    }
-                    self._tranlate(self.scroller,500);
-                },500);
-                preScrollerHeight = this.wrapper.scrollHeight; 
-                if(this.nomore){
-                    this.bottomTip.innerHTML = this.bottomNomoreTxt;
-                }else{
-                    if(this.autoLoad){
-                        this.bottomTip.innerHTML = self.bottomLoadingTxt;
-                    }else{
-                        this.bottomTip.innerHTML = self.bottomLoadTxt;
-                    }
-                    
-                }
+                this._tranlate(self.scroller,500);
+                preScrollerHeight = this.wrapper.scrollHeight;
             },
             setOffsetY: function(offsetY){
                 //设置偏移量
@@ -160,34 +145,19 @@ define(function(require, exports, module) {
                     this._tranlate(this.scroller,300);
                 }
             },
-            setTopTip: function(txt){
-                if(!this.useRefreshIcon){
-                    this.topTip.innerHTML = txt;
-                }
-            },
-            setBottomTip: function(){
-                this.bottomTip.innerHTML = txt;
-            },
             setNomore: function(nomore){
                 this.nomore = nomore;
-                if(this.nomore){
-                    this.bottomTip.innerHTML = this.bottomNomoreTxt;
-                }else if(this.autoLoad){
-                    this.bottomTip.innerHTML = self.bottomLoadingTxt;
-                }else{
-                    this.bottomTip.innerHTML = self.bottomLoadTxt;
-                }
+            },
+            destroy: function(){
+                this._removeAllEvent();
             },
             /**
              * [_tranlate 移动函数]
              * @param  {[DOM]} target [目标对象]
              * @param  {[Number]} transitionDuration [过渡时间，为0时不会触发transitionend事件]
              */
-            _tranlate: function(target,transitionDuration){
-                if((target==this.scroller && this.offsetY>this.topOffsetY && this.useRefreshIcon) || 
-                    (target==this.topTip && this.offsetY<this.topOffsetY && this.useRefreshIcon)){
-                    return;
-                }
+            _tranlate: function(target,transitionDuration,_offsetY){
+                var offsetY = _offsetY!=undefined?_offsetY:this.offsetY;
                 if(!transitionDuration)
                     transitionDuration = 0;
                 if(transitionDuration){
@@ -199,7 +169,7 @@ define(function(require, exports, module) {
                 target.style[this.prefixStyle.transitionTimingFunction] = 'cubic-bezier(0.33, 0.66, 0.66, 1)';
                 target.style[this.prefixStyle.transitionDuration] = transitionDuration+'ms';
                 //translateZ(0)用来启动硬件加速
-                target.style[this.prefixStyle.transform] = 'translateY('+this.offsetY+'px) translateZ(0)';
+                target.style[this.prefixStyle.transform] = 'translateY('+offsetY+'px) translateZ(0)';
 
                 if(this.bar && target == this.scroller){
                     var offsetY = 0;
@@ -282,6 +252,10 @@ define(function(require, exports, module) {
                     clearTimeout(baunceTimeoutId);
                     preY = startY = e.touches[0].pageY;
                 }
+                if(this.wrapper.scrollTop==0){
+                    hasSlideUp = false;
+                }
+                this.onStart(this.offsetY);
             },
             //触摸移动
             _move: function(e){
@@ -296,106 +270,56 @@ define(function(require, exports, module) {
                 //300ms以上的时间只滑动了10像素，则不移动
                 if(disY < 10 && nowTime - startTime > 300)
                     return;
-                if(!this.useNativeScroll){//浏览器自带滚动
+                if(!this.useNativeScroll){//自定义滚动
                     e.preventDefault();
                     e.stopPropagation();
                     //上拉或者下拉超出后,降低两次touchmove之间Y的偏移量
-                    if(this.offsetY < this.maxOffsetY && this.maxOffsetY<0 && disY < 0){
+                    if(this.offsetY < this.maxOffsetY && this.maxOffsetY<0){
                         isOutBottom = true;
+                        isOutTop = false;
                         disY *= 0.25;
-                        if(!this.autoLoad){//手动加载
-                            if(this.nomore){
-                                this.bottomTip.innerHTML = this.bottomNomoreTxt;
-                            }else if(this.offsetY < this.maxOffsetY - this.bottomTip.clientHeight){
-                                this.bottomTip.innerHTML = this.bottomLoadGoTxt;
-                            }else if(this.offsetY < this.maxOffsetY){
-                                this.bottomTip.innerHTML = this.bottomLoadTxt;
-                            }
-                        }
                         this.offsetY += disY;
                         this._tranlate(this.scroller);
-                    }else if(this.offsetY > this.topOffsetY && disY > 0){
+                    }else if(this.offsetY > this.topOffsetY){
                         isOutTop = true;
-                        if(this.useRefreshIcon){
-                            disY *= 0.5;
-                            this.offsetY += disY;
-                            this._rotateIcon();
-                            this._tranlate(this.topTip);
-                        }else{
-                            disY *= 0.25;
-                            if(this.offsetY > this.topOffsetY+this.topTip.clientHeight){
-                                this.topTip.innerHTML = this.topRefreshGoTxt;
-                            }else{
-                               
-                                this.topTip.innerHTML = this.topRefreshTxt;
-                            }
-                            this.offsetY += disY;
-                            this._tranlate(this.scroller);
-                        }
+                        isOutBottom = false;
+                        disY *= 0.25;
+                        this.offsetY += disY;
+                        this._tranlate(this.scroller);
                     }else{
+                        isOutTop = false;
+                        isOutBottom = false;
                         this.offsetY += disY;
                         this._tranlate(this.scroller);
                     }
-                    //自动加载提示
-                    if(this.autoLoad){
-                        if(this.nomore){
-                            this.bottomTip.innerHTML = this.bottomNomoreTxt;
-                        }else if(this.offsetY <= this.maxOffsetY+this.bottomTip.clientHeight && this.maxOffsetY<0){
-                            this.bottomTip.innerHTML = this.bottomLoadingTxt;
-                        }
-                    }
-                }else{//自定义滚动
+                }else{//浏览器自带滚动
+                    disY<0 && (hasSlideUp=true);
                     if(Math.abs(this.wrapper.scrollTop-Math.abs(this.wrapper.clientHeight-this.wrapper.scrollHeight)) < 2 && this.offsetY+disY < this.topOffsetY){
                         e.preventDefault();
                         e.stopPropagation();
                         isOutBottom = true;
+                        isOutTop = false;
                         disY *= 0.25;
                         this.offsetY += disY;
                         this._tranlate(this.scroller);
-                        if(!this.autoLoad){//手动加载
-                            if(this.nomore){
-                                this.bottomTip.innerHTML = this.bottomNomoreTxt;
-                            }else if(this.offsetY < this.topOffsetY - this.bottomTip.clientHeight){
-                                this.bottomTip.innerHTML = this.bottomLoadGoTxt;
-                            }else if(this.offsetY < this.topOffsetY){
-                                this.bottomTip.innerHTML = this.bottomLoadTxt;
-                            }
-                        }
-                    }else if(this.wrapper.scrollTop == 0 && this.offsetY+disY > this.topOffsetY){
+                    }else if(this.wrapper.scrollTop == 0 && this.offsetY+disY > this.topOffsetY && (this.offsetY > this.topOffsetY || !hasSlideUp)){
                         e.preventDefault();
                         e.stopPropagation();
                         isOutTop = true;
-                        if(this.useRefreshIcon){
-                            disY *= 0.5;
-                            this.offsetY += disY;
-                            this._rotateIcon();
-                            this._tranlate(this.topTip);
-                        }else{
-                            disY *= 0.25;
-                            if(this.offsetY > this.topOffsetY+this.topTip.clientHeight){
-                                this.topTip.innerHTML = this.topRefreshGoTxt;
-                            }else{
-                               
-                                this.topTip.innerHTML = this.topRefreshTxt;
-                            }
-                            this.offsetY += disY;
-                            this._tranlate(this.scroller);
-                        }
-                    }else{
+                        isOutBottom = false;
+                        disY *= 0.25;
+                        this.offsetY += disY;
+                        this._tranlate(this.scroller);
+                    }else if(Math.abs(this.offsetY-this.topOffsetY)>5){
+                        e.preventDefault();
+                        e.stopPropagation();
                         isOutTop = false;
                         isOutBottom = false;
-                        this.offsetY = this.topOffsetY;
-                    }
-                    //自动加载提示
-                    if(this.autoLoad){
-                        if(this.nomore){
-                            this.bottomTip.innerHTML = this.bottomNomoreTxt;
-                        }else if(this.wrapper.scrollTop-Math.abs(this.wrapper.clientHeight-this.wrapper.scrollHeight) <= this.bottomTip.clientHeight){
-                            this.bottomTip.innerHTML = this.bottomLoadingTxt;
-                        }
+                        this.offsetY = disY;
+                        this._tranlate(this.scroller);
                     }
                 }
-                typeof this.onMove === 'function' && this.onMove();
+                this.onMove(this.offsetY);
             },
             //触摸结束
             _end: function(e){
@@ -404,39 +328,23 @@ define(function(require, exports, module) {
                 endTime = new Date().getTime();
                 var duration = endTime - startTime;
                 if(!this.useNativeScroll){
-                    //自动加载
-                    if(this.autoLoad && !this.nomore){
-                        this.bottomTip.innerHTML = this.bottomLoadingTxt;
-                        if(this.offsetY <= this.maxOffsetY+this.bottomTip.clientHeight && this.maxOffsetY<0 && typeof this.onLoad === 'function'){
-                            this.onLoad();
-                        }
-                    }
                     if(isOutBottom){
                         this.offsetY = this.maxOffsetY;
                         //手动加载
-                        if(!this.nomore && typeof this.onLoad === 'function' && preOffsetY < this.maxOffsetY - this.bottomTip.clientHeight && !this.autoLoad){
-                            this.bottomTip.innerHTML = this.bottomLoadingTxt;
+                        if(!this.nomore && preOffsetY < this.maxOffsetY - this.bottomTipHeight && !this.autoLoad){
                             this.onLoad();
                         }
-                        duration = Math.abs(preOffsetY - this.offsetY)/wrapper.clientHeight*1500;
+                        duration = Math.abs(preOffsetY - this.offsetY)/this.wrapper.clientHeight*1500;
                         this._tranlate(this.scroller,duration);
+                        this.onBottom();
                     }else if(isOutTop){
-                        this.offsetY = this.topOffsetY;
-                        if(this.useRefreshIcon){
-                            if(typeof this.onRefresh === 'function' && preOffsetY > this.topTip.clientHeight*2){
-                                this.refreshIcon.className = 'rf_rf_circle_w rotate_circle';
-                                this.offsetY = this.topTip.clientHeight*2;
-                                this.onRefresh();
-                            }
-                            duration = Math.abs(preOffsetY - this.offsetY)/wrapper.clientHeight*1500;
-                            this._tranlate(this.topTip,duration);
+                        if(preOffsetY >= this.topOffsetY+this.topTipHeight){
+                            this.offsetY = this.topOffsetY+this.topTipHeight;
+                            this._tranlate(this.scroller,500);
+                            this.onRefresh();
                         }else{
-                            if(typeof this.onRefresh === 'function' && preOffsetY > this.topOffsetY+this.topTip.clientHeight){
-                                this.topTip.innerHTML = this.topRefreshingTxt;
-                                this.offsetY = this.topOffsetY+this.topTip.clientHeight;
-                                this.onRefresh();
-                            }
-                            duration = Math.abs(preOffsetY - this.offsetY)/wrapper.clientHeight*1500;
+                            this.offsetY = this.topOffsetY;
+                            duration = Math.abs(preOffsetY - this.offsetY)/this.wrapper.clientHeight*1500;
                             this._tranlate(this.scroller,duration);
                         }
                     }else{
@@ -445,8 +353,12 @@ define(function(require, exports, module) {
                         duration = obj.duration;
                         this._tranlate(this.scroller,duration);
                     }
-                    isOutTop = false;
-                    isOutBottom = false;
+                    //自动加载
+                    if(this.autoLoad && !this.nomore){
+                        if(this.offsetY <= this.maxOffsetY && this.maxOffsetY<0){
+                            this.onLoad();
+                        }
+                    }
                     clearTimeout(barFadeTimeoutId);
                     barFadeTimeoutId = setTimeout(function(){
                         if(self.enableFadeout && self.bar.style.display!='none'){
@@ -456,66 +368,31 @@ define(function(require, exports, module) {
                         }
                     },duration+500);
                 }else{
-                    //自动加载
-                    if(this.autoLoad && !this.nomore){
-                        this.bottomTip.innerHTML = this.bottomLoadingTxt;
-                        if( typeof this.onLoad === 'function' && Math.abs(this.wrapper.scrollTop-Math.abs(this.wrapper.clientHeight-this.wrapper.scrollHeight)) < this.bottomTip.clientHeight){
-                            this.onLoad();
-                        }
-                    }
                     if(isOutBottom){
                         this.offsetY = this.topOffsetY;
                         //手动加载
-                        if(!this.nomore && typeof this.onLoad === 'function' && preOffsetY < -this.bottomTip.clientHeight+this.topOffsetY && !this.autoLoad){
-                            this.bottomTip.innerHTML = this.bottomLoadingTxt;
+                        if(!this.nomore && preOffsetY < -this.bottomTipHeight+this.topOffsetY && !this.autoLoad){
                             this.onLoad();
                         }
-                        duration = Math.abs(preOffsetY-this.topOffsetY)/wrapper.clientHeight*1500;
+                        duration = Math.abs(preOffsetY-this.topOffsetY)/this.wrapper.clientHeight*1500;
                         this._tranlate(this.scroller,duration);
                     }else if(isOutTop){
-                        this.offsetY = this.topOffsetY;
-                        if(this.useRefreshIcon){
-                            if(typeof this.onRefresh === 'function' && preOffsetY > this.topTip.clientHeight*2){
-                                this.refreshIcon.className = 'rf_rf_circle_w rotate_circle';
-                                this.offsetY = this.topTip.clientHeight*2;
-                                this.onRefresh();
-                            }
-                            duration = Math.abs(preOffsetY - this.offsetY)/wrapper.clientHeight*1500;
-                            this._tranlate(this.topTip,duration);
+                        if(preOffsetY > this.topOffsetY+this.topTipHeight){
+                            this.offsetY = this.topOffsetY+this.topTipHeight;
+                            this._tranlate(this.scroller,500);
+                            this.onRefresh();
                         }else{
-                            if(typeof this.onRefresh === 'function' && preOffsetY > this.topOffsetY+this.topTip.clientHeight){
-                                this.topTip.innerHTML = this.topRefreshingTxt;
-                                this.offsetY = this.topOffsetY+this.topTip.clientHeight;
-                                this.onRefresh();
-                            }
-                            duration = Math.abs(preOffsetY - this.offsetY)/wrapper.clientHeight*1500;
+                            this.offsetY = this.topOffsetY;
+                            duration = Math.abs(preOffsetY - this.offsetY)/this.wrapper.clientHeight*1500;
                             this._tranlate(this.scroller,duration);
                         }
+                        
                     }else{
                         this.offsetY = this.topOffsetY;
-                        duration = 0;
+                        this._tranlate(this.scroller,0);
                     }
                 }
-                if(this.nomore){
-                    this.bottomTip.innerHTML = this.bottomNomoreTxt;
-                }
-            },
-            _rotateIcon: function(){
-                if(this.offsetY > this.topOffsetY){
-                    var distance = Math.abs(this.offsetY-this.topOffsetY);
-                    var deg = distance/this.topTip.clientHeight*180;
-                    deg = deg>360?360:deg;
-                    if(deg<180){
-                        this.leftIconCover.style[this.prefixStyle.transform] = 'rotate(0deg)';
-                        this.rightIconCover.style[this.prefixStyle.transformOrigin] = 'left center';
-                        this.rightIconCover.style[this.prefixStyle.transform] = 'rotate('+deg+'deg)';
-                    }else{
-                        this.rightIconCover.style[this.prefixStyle.transformOrigin] = 'left center';
-                        this.rightIconCover.style[this.prefixStyle.transform] = 'rotate('+180+'deg)';
-                        this.leftIconCover.style[this.prefixStyle.transformOrigin] = 'right center';
-                        this.leftIconCover.style[this.prefixStyle.transform] = 'rotate('+(deg-180)+'deg)';
-                    }
-                }
+                this.onEnd(this.offsetY);
             },
             //创建滚动条
             _createScrollBar: function(){
@@ -530,66 +407,32 @@ define(function(require, exports, module) {
                 barOpacity = style.opacity;
                 return div;
             },
-            //创建提示语dom元素
-            _createTip: function(){
-                var topTipCss = 'width:100%;display:block;line-height:60px;height:60px;text-align:center';
-                var bottomTipCss = 'width:100%;display:block;line-height:60px;height:60px;text-align:center';
-                this.topTip = document.createElement('div');
-                this.bottomTip = document.createElement('div');
-                this.topTip.innerHTML = this.topRefreshTxt;
-                this.topTip.setAttribute('class', 'my_top_tip '+(this.topTipClassName?this.topTipClassName:''));
-                this.bottomTip.innerHTML = this.autoLoad?this.bottomLoadingTxt:this.bottomLoadTxt;
-                this.bottomTip.setAttribute('class', 'my_bottom_tip '+(this.bottomTipClassName?this.bottomTipClassName:''));
-                this.scroller.insertBefore(this.topTip,this.scroller.firstElementChild);
-                this.scroller.appendChild(this.bottomTip);
-                Util.insertRlue('.my_top_tip',topTipCss);
-                Util.insertRlue('.my_bottom_tip',bottomTipCss);
-                if(this.useNativeScroll){
-                    this.topTip.style.position = 'absolute';
-                    this.topTip.style.top = -this.topTip.clientHeight+'px';
-                }
-                //创建刷新图标
-                if(this.useRefreshIcon){
-                    var fixedTopTipCss = 'width:60px;position:absolute;top:-60px;left:50%;margin-left:-30px;z-index:99;background:#fff;border-radius:50%;box-shadow:1px 1px 5px rgba(0,0,0,0.1)';
-                    Util.insertRlue('.my_top_tip',fixedTopTipCss);
-                    this.topTip.style.fontSize = '0px';
-                    this.topTip.style.width = '60px';
-                    this.topTip.style.position = 'fixed';
-                    this.topTip.innerHTML = '<div class="rf_rf_circle_w">\
-                                                <div class="rf_cover_left_w"><div class="rf_cover_left"></div></div>\
-                                                <div class="rf_cover_right_w"><div class="rf_cover_right"></div></div>\
-                                                <div class="rf_circle"></div>\
-                                            </div>';
-
-                    var css_rf_rf_circle_w = 'position: relative; width: 40px; height: 40px; border-radius: 50%;display: inline-block; vertical-align: middle';
-                    var css_rf_cover_left_w = 'position: absolute; width: 52%; height: 104%; overflow: hidden;left:-2%;top:-2%';
-                    var css_rf_cover_right_w = 'position: absolute; width: 53%; height: 104%; overflow: hidden;right:-2%;top:-2%';
-                    var css_rf_cover = 'display: block; width: 100%; height: 100%;background: #fff';
-                    var css_rf_circle = 'width: 100%; height: 100%; box-sizing:border-box; border-radius: 50%; border: 4px solid red';
-
-                    this.refreshIcon = this.topTip.getElementsByClassName('rf_rf_circle_w')[0];
-                    this.leftIconCover = this.topTip.getElementsByClassName('rf_cover_left')[0];
-                    this.rightIconCover = this.topTip.getElementsByClassName('rf_cover_right')[0];
-                    this.iconCircle = this.topTip.getElementsByClassName('rf_circle')[0];
-
-                    Util.insertRlue('.rf_rf_circle_w',css_rf_rf_circle_w);
-                    Util.insertRlue('.rf_cover_left_w',css_rf_cover_left_w);
-                    Util.insertRlue('.rf_cover_right_w',css_rf_cover_right_w);
-                    Util.insertRlue('.rf_cover_left',css_rf_cover);
-                    Util.insertRlue('.rf_cover_right',css_rf_cover);
-                    Util.insertRlue('.rf_circle',css_rf_circle);
-
-                    Util.insertRlue('.rotate_circle','animation:ani_rotate_circle 2s infinite;-webkit-animation:ani_rotate_circle 2s infinite');
-                    Util.insertRlue('.rotate_circle .rf_cover_left','transform:rotate(60deg) !important;-webkit-transform:rotate(60deg) !important;');
-                    Util.insertRlue('.rotate_circle .rf_cover_right','transform:rotate(180deg) !important;-webkit-transform:rotate(180deg) !important;');
-                    Util.insertRlue('@keyframes ani_rotate_circle','0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)}');
-                    Util.insertRlue('@-webkit-keyframes ani_rotate_circle','0%{-webkit-transform:rotate(0deg)} 100%{-webkit-transform:rotate(360deg)}');
-                }
-            },
             //事件绑定函数
-            _bindEvent: function(target,eventType,callback){
-                target.addEventListener(eventType,callback,false);
+            _bindEvent: function(ele, event_name, func) {
+                if (window.attachEvent) {
+                    ele.attachEvent('on' + event_name, func);
+                } else {
+                    ele.addEventListener(event_name, func, false); //默认事件是冒泡
+                }
+                allListener[allListener.length] = {
+                    ele: ele,
+                    func: func,
+                    event: event_name
+                }
             },
+            _removeEvent: function(ele, event_name, func){
+                if (window.attachEvent) {
+                    ele.detachEvent('on' + event_name, func);
+                } else {
+                    ele.removeEventListener(event_name, func, false);
+                }
+            },
+            _removeAllEvent: function(){
+                for(var i=0; i<allListener.length; i++){
+                    var listener = allListener[i];
+                    this._removeEvent(listener.ele,listener.event,listener.func);
+                }
+            }
         }
 
         typeof opt === 'object' && ScrollObj.init(opt);
@@ -650,5 +493,5 @@ define(function(require, exports, module) {
             }
         }
     }
-    return Scroll;
-})
+//     return Scroll;
+// })

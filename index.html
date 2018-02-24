@@ -42,8 +42,8 @@
 	}
 	document.querySelector('#content').innerHTML = html;
 	new Scroll({
-		wrapperId: 'wrapper',
-		scrollerId: 'content',
+		wrapper: document.querySelector('#wrapper'),
+		scroller: document.querySelector('#content'),
 		enableBar: true,
 		barClassName: 'bar',
 		enableFadeout: true

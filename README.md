@@ -1,4 +1,4 @@
-# tiny-scroll
+# light-scroller
 
 > 一个使用原生 JavaScript 实现的移动端上拉下滑组件
 
@@ -20,7 +20,7 @@
 ## 安装
 
 ```bash
-npm install tiny-scroll --save
+npm install light-scroller --save
 ```
 
 OR

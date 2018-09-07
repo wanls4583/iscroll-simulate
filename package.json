@@ -1,11 +1,11 @@
 {
-  "name": "tiny-scroll",
+  "name": "light-scroller",
   "version": "1.0.0",
   "description": "A carousel,use transition or position,run in pc or mobile",
   "main": "dist/carousel.min.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wanls4583/tiny-scroll.git"
+    "url": "git+https://github.com/wanls4583/light-scroller.git"
   },
   "keywords": [
     "scroll",

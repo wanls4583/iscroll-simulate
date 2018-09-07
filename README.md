@@ -58,9 +58,9 @@ npm run build:prod
 
 ## 案例
 
-请查看[**`example`**](https://github.com/wanls4583/tiny-scroll/tree/master/src/example)
+请查看[**`example`**](https://github.com/wanls4583/light-scroller/tree/master/src/example)
 
-[**`oline demo`**](https://blog.lisong.hn.cn/code/example/tiny-scroll/index.html)
+[**`oline demo`**](https://blog.lisong.hn.cn/code/example/light-scroller/index.html)
 
 ## config
 

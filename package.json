@@ -1,6 +1,6 @@
 {
   "name": "light-scroller",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A light scroll run in mobile browser,use native scroll or css3-translate",
   "main": "dist/carousel.min.js",
   "repository": {

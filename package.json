@@ -1,6 +1,6 @@
 {
   "name": "light-scroller",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A carousel,use transition or position,run in pc or mobile",
   "main": "dist/carousel.min.js",
   "repository": {

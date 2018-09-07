@@ -74,7 +74,6 @@ npm run build:prod
 |`useNativeScroll`|是否使用浏览器自带滚动[可选]|`false`|`Boolean`|
 |`enableBar`|是否使用自定义滚动条(仅当useNativeScroll为false时才有意义)[可选]|`false`|`Boolean`|
 |`enableFadeout`|是否允许自定义滚动条渐隐(仅当enableBar为true时才有意义)|`false`|`Boolean`|
-|`barClassName`|自定义滚动条类名(仅当enableBar为true时才有意义)|`&nbsp;`|`String`|
 |`onRefresh`|刷新回调[可选]|`function(){}`|`Function`|
 |`onLoad`|加载回调[可选]|`function(){}`|`Function`|
 |`onStart`|开始触摸回调[可选]|`function(){}`|`Function`|

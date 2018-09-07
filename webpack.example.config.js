@@ -35,6 +35,9 @@ module.exports = {
                 presets: ['es2015']
             },
             include: [resolve('src'), resolve('test')]
+        },{
+            test:/\.css$/,
+            use:['style-loader','css-loader']
         }]
     },
     plugins: [

@@ -14,9 +14,8 @@ var scroll = new Scroll({
     topTip: topTip,
     bottomTip: bottomTip,
     enableBar: true,
-    barClassName: 'bar',
     enableFadeout: true,
-    useNativeScroll: true,
+    // useNativeScroll: true,
     onMove: onMove,
     onRefresh: refresh,
     onLoad: onLoad
@@ -50,8 +49,13 @@ function onLoad() {
 /**
  * 滑动动时触发
  * @param  {Number} offsetY scroller相对wrapper的偏移量
+ * @param  {Number} status 状态提示
  */
 function onMove(offsetY, status) {
+    // Scroll.OUT_TOP = 1; //下拉超过顶部
+    // Scroll.OUT_BOTTOM = 2; //上滑超过底部
+    // Scroll.REFRESH_ABLE = 3; //可刷新
+    // Scroll.LOAD_ABLE = 4; //可加载
     if(status == Scroll.REFRESH_ABLE){
         topTip.innerHTML = '松开刷新...';
     }else{

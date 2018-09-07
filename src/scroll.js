@@ -3,6 +3,8 @@
  * @DateTime 2017-08-29
  */
 
+import css from './style.css';
+
 class Scroll {
     /* opt {
      * wrapper:外部容器DOM,
@@ -50,7 +52,6 @@ class Scroll {
         //滚动的内容
         this.scroller = opt.scroller;
         this.bar = null;
-        this.barClassName = opt.barClassName;
         this.enableFadeout = opt.enableFadeout;
         this.useNativeScroll = opt.useNativeScroll;
         this.enableBar = opt.enableBar;
@@ -66,6 +67,7 @@ class Scroll {
         this.nomore = false;
         this.topTipHeight = 0;
         this.bottomTipHeight = 0;
+        this.barClassName = 'bar';
         if (this.topTip) {
             this.topTip.style.display = 'block';
             this.topTipHeight = this.topTip.clientHeight;
@@ -74,10 +76,9 @@ class Scroll {
             this.bottomTip.style.display = 'block';
             this.bottomTipHeight = this.bottomTip.clientHeight;
         }
-        this.barHeight = this.wrapper.clientHeight * (this.wrapper.clientHeight / this.wrapper.scrollHeight);
-        this.enableBar && (this.bar = this._createScrollBar()) && (this.bar.style.display = 'none');
         if (this.useNativeScroll) {
             this.wrapper.style.overflow = 'auto';
+            this.wrapper.style.webkitOverflowScrolling = 'touch';
             this.scroller.style.marginBottom = '-' + this.topTipHeight + 'px';
         } else {
             this.barHeight = this.wrapper.clientHeight * (this.wrapper.clientHeight / this.wrapper.scrollHeight);
@@ -459,9 +460,9 @@ class Scroll {
         }
     }
 }
-Scroll.OUT_TOP = 1;
-Scroll.OUT_BOTTOM = 2;
-Scroll.REFRESH_ABLE = 3;
-Scroll.LOAD_ABLE = 4;
+Scroll.OUT_TOP = 1; //下拉超过顶部
+Scroll.OUT_BOTTOM = 2; //上滑超过底部
+Scroll.REFRESH_ABLE = 3; //可刷新
+Scroll.LOAD_ABLE = 4; //可加载
 
 export default Scroll;

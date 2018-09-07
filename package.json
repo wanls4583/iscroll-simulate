@@ -1,7 +1,7 @@
 {
   "name": "light-scroller",
-  "version": "1.0.1",
-  "description": "A carousel,use transition or position,run in pc or mobile",
+  "version": "1.0.2",
+  "description": "A light scroll run in mobile browser,use native scroll or css3-translate",
   "main": "dist/carousel.min.js",
   "repository": {
     "type": "git",
@@ -21,7 +21,9 @@
     "babel-loader": "^7.1.5",
     "babel-preset-es2015": "^6.24.1",
     "copy-webpack-plugin": "^4.5.2",
+    "css-loader": "^1.0.0",
     "html-webpack-plugin": "^3.2.0",
+    "style-loader": "^0.23.0",
     "uglifyjs-webpack-plugin": "^1.2.7",
     "webpack": "^3.10.0",
     "webpack-dev-server": "^2.11.1"
